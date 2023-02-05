@@ -1,0 +1,7 @@
+data/*
+!data/__init__.py
+!results/__init__.py 
+__pycache__
+run_coteaching.py
+LT/
+NL/
