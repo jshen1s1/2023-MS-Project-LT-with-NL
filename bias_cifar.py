@@ -47,11 +47,12 @@ class CIFAR10_bias(data.Dataset):
     ]
 
     def __init__(self, root, train=True,
-                 transform=None, target_transform=None,
+                 transform=None, transform_eval = None, target_transform=None, 
                  download=False,lt_type=None, lt_ratio=0.01,
                  noise_type=None, noise_rate=0.2, random_state=0):
         self.root = os.path.expanduser(root)
         self.transform = transform
+        self.transform_eval = transform_eval
         self.target_transform = target_transform
         self.train = train  # training set or test set
         self.dataset='cifar10'
@@ -60,6 +61,8 @@ class CIFAR10_bias(data.Dataset):
         self.noise_rate = noise_rate
         self.lt_ratio = lt_ratio
         self.random_state = random_state
+        self.apply_transform_eval = False
+        self.t_matrix = None
 
         self.nb_classes=10
         self.img_num_per_cls = [5000]*10
@@ -127,7 +130,7 @@ class CIFAR10_bias(data.Dataset):
     def generate_noisylabels(self,train_data,train_labels,noise_type,noise_rate,nb_classes,random_state):
         if noise_type in ['symmetric','pairflip']:
             train_labels = np.asarray([[train_labels[i]] for i in range(len(train_labels))])
-            train_labels, actual_noise_rate = noisify(dataset=self.dataset, train_labels=train_labels, noise_type=noise_type, noise_rate=noise_rate, random_state=random_state, nb_classes=nb_classes)
+            train_labels, actual_noise_rate, self.t_matrix = noisify(dataset=self.dataset, train_labels=train_labels, noise_type=noise_type, noise_rate=noise_rate, random_state=random_state, nb_classes=nb_classes)
             train_labels = [i[0] for i in train_labels]
             self.train_labels = train_labels
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
@@ -168,13 +171,24 @@ class CIFAR10_bias(data.Dataset):
         # to return a PIL Image
         img = Image.fromarray(img)
 
+        if self.apply_transform_eval:
+            transform = self.transform_eval
+        else:
+            transform = self.transform 
+
         if self.transform is not None:
-            img = self.transform(img)
+            img = transform(img)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
         true_target = self.true_labels[index]
         return img, target, true_target, index
+
+    def eval(self):
+        self.apply_transform_eval = True
+
+    def train_mode(self):
+        self.apply_transform_eval = False
 
     def __len__(self):
         if self.train:
@@ -213,11 +227,12 @@ class CIFAR100_bias(data.Dataset):
     ]
 
     def __init__(self, root, train=True,
-                 transform=None, target_transform=None,
+                 transform=None, transform_eval = None, target_transform=None,
                  download=False,lt_type=None, lt_ratio=0.01,
                  noise_type=None, noise_rate=0.2, random_state=0):
         self.root = os.path.expanduser(root)
         self.transform = transform
+        self.transform_eval = transform_eval
         self.target_transform = target_transform
         self.train = train  # training set or test set
         self.dataset='cifar100'
@@ -226,6 +241,8 @@ class CIFAR100_bias(data.Dataset):
         self.noise_rate = noise_rate
         self.lt_ratio = lt_ratio
         self.random_state = random_state
+        self.apply_transform_eval = False
+        self.t_matrix = None
 
         self.nb_classes=100
         self.img_num_per_cls = [500]*100
@@ -292,7 +309,7 @@ class CIFAR100_bias(data.Dataset):
     def generate_noisylabels(self,train_data,train_labels,noise_type,noise_rate,nb_classes,random_state):
         if noise_type in ['symmetric','pairflip']:
             train_labels = np.asarray([[train_labels[i]] for i in range(len(train_labels))])
-            train_labels, actual_noise_rate = noisify(dataset=self.dataset, train_labels=train_labels, noise_type=noise_type, noise_rate=noise_rate, random_state=random_state, nb_classes=nb_classes)
+            train_labels, actual_noise_rate, self.t_matrix = noisify(dataset=self.dataset, train_labels=train_labels, noise_type=noise_type, noise_rate=noise_rate, random_state=random_state, nb_classes=nb_classes)
             train_labels = [i[0] for i in train_labels]
             self.train_labels = train_labels
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
@@ -333,13 +350,24 @@ class CIFAR100_bias(data.Dataset):
         # to return a PIL Image
         img = Image.fromarray(img)
 
+        if self.apply_transform_eval:
+            transform = self.transform_eval
+        else:
+            transform = self.transform 
+
         if self.transform is not None:
-            img = self.transform(img)
+            img = transform(img)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
         true_target = self.true_labels[index]
         return img, target, true_target, index
+
+    def eval(self):
+        self.apply_transform_eval = True
+
+    def train_mode(self):
+        self.apply_transform_eval = False
 
     def __len__(self):
         if self.train:

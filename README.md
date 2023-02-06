@@ -1,26 +1,27 @@
 ## 2023-MS-Project-Long-Tailed-Learning-with-Noisy-Labels
 
-This repository contains the code corresponding to 
+This repository contains the code for Jinghao Shen's MS Project
 
-The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the FSDnoisy18k dataset, log-mel energies are computed and a CNN baseline is trained and evaluated. The code also allows to test four noise-robust loss functions. 
+The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the CIFAR10/CIFAR100 dataset, a resnet baseline is trained and evaluated. The code also allows to test four noise-robust loss functions. 
 
 ## Dependencies
-This framework is tested on Ubuntu 17.10 using a conda environment. To duplicate the environment:
+This framework is tested on Ubuntu 20.04.5. To duplicate the environment:
 
-`conda create --name <envname> --file requirements.txt`
+`Under construction`
+<!---`conda create --name <envname> --file requirements.txt`--->
 
 
 ## Directories and files
 
-`config/` includes a `*.yaml` file with the parameters for the experiment  
-`logs/` folder where to include output files per experiment  
+`data/` folder where to include downloaded datasets
+`results/` folder where to include output files per experiment  
 
 `main.py` is the main script  
-`data.py` contains the data generators  
-`feat_extract.py` contains feature extraction code  
-`architectures.py` contains the architecture for the baseline system  
+`dataset.py` contains the data generators  
+`bias_cifar.py` contains bias generateors 
+`metrics.py` contains functions for matric estimators 
 `utils.py` some basic utilities  
-`eval.py` evaluation code  
+`resnet.py` contains models 
 `losses.py` definition of several loss functions  
 
 
@@ -29,54 +30,58 @@ This framework is tested on Ubuntu 17.10 using a conda environment. To duplicate
 
 #### (0) Download the dataset:
 
-Download FSDnoisy18k from Zenodo through the <a href="http://www.eduardofonseca.net/FSDnoisy18k/" target="_blank">dataset companion site</a>, unzip it and locate it in a given directory.
+Download CIFAR through the <a href="https://www.cs.toronto.edu/~kriz/cifar.html" target="_blank">dataset companion site</a>, unzip it and locate it in a given directory.
 
-#### (1) Edit `config/*.yaml` file:
+#### (1) Adjust parameters:
 
-The goal is to define the parameters of the experiment. The file is structured with self-descriptive sections. The most important parameters are: 
+The goal is to define the parameters of the experiment. The most important parameters are: 
+   
+`noise_type`: type of noise 
+`lt_type`: type of long-tailed distribution
+`loss`: defines the loss function. To be decided among:
+`dual_t`: apply dual T estimator or not
 
-`ctrl.dataset_path`: path where the dataset is located, eg, `/data/FSDnoisy18k/`.   
-`ctrl.train_data`: define the subset of training data to consider in the experiment. To be decided among: `['all', 'noisy', 'noisy_small', 'clean']` (see paper)   
-`loss.q_loss`: this is an example of a hyper-parameter of a loss function, according to the paper. For example, `q_loss` corresponds to `q` in equation (3) of the paper and `reed_beta` corresponds to `beta` in equation (2).  
-`loss.type`: defines the loss function. To be decided among:
+  - `cross_entropy`: cross entropy loss
+  - `focal_loss`: 
+  - `logits_adjustment`: 
+  - `cores`: 
+  - `gce`: 
+  - `cb_ce`: 
+  - `cb_focal`: 
+  - `cores_no_select`: 
+  - `cores_logits_adjustment`: 
+  - `erl`:
+  - `coteaching`: 
+  - `coteaching_plus`: 
+  - `cls`: 
 
-  - `CCE`: categorical_crossentropy aka cross entropy loss
-  - `lq_loss`: L_q loss
-  - `CCE_max`: CCE loss & discard loss values using maximum-based threshold
-  - `CCE_outlier`: CCE loss & discard loss values using outlier-based threshold
-  - `bootstrapping`: L_soft loss
-  - `lq_loss_origin`: L_q loss applied selectively based on data origin*
-  - `CCE_max_origin`: CCE_max applied selectively based on data origin*
-  - `CCE_outlier_origin`: CCE_outlier applied selectively based on data origin*
-  - `bootstrapping_origin`: L_soft loss applied selectively based on data origin*
-
-*The selective application of the loss functions makes sense when training with the entire train set (that is, considering clean and noisy data), ie `ctrl.train_data: all ` (see paper).
 
 The rest of the parameters should be rather intuitive.
 
 
 #### (2) Execute the code by:
-- activating the conda env 
-- run, for instance: `CUDA_VISIBLE_DEVICES=0 KERAS_BACKEND=tensorflow python main.py -p config/params.yaml &> logs/output_file.out`
+- run, for instance: `python main.py --dataset cifar100 --loss cross_entropy`
 
-In the first run, log-mel features are extracted and saved. In the following times, the code detects that there is a feature folder. It *only* checks the folder; not the content. If some feature extraction parameters are changed, the program won’t know it.
 
 #### (3) See results:
 
-You can check the `logs/*.out`. Results are shown in a table (you can search for the string `ACCURACY - MICRO` and it will take you to them).
+You can check the `results/*.txt`. Results are shown in a table.
 
 
 ## Reproducing the baseline
 
+Under construction
+<!--
 #### (1) Edit `config/*.yaml` file
 
   - `ctrl.train_data: all` # (or any other train subset)
   - `loss.type: CCE` # this is standard cross entropy loss
  
 #### (2) Execute the code.
-
+-->
 ## Baseline system details
 
+Under construction
  
 ## Contact
 

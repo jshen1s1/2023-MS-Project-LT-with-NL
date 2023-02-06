@@ -23,6 +23,7 @@ from dataset import input_dataset
 import numpy as np
 from resnet import ResNet34
 from loss import *
+from metrics import *
 np.random.seed(0)
 
 parser = argparse.ArgumentParser(description='Cross Entropy')
@@ -43,6 +44,7 @@ parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--weight-decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')
 parser.add_argument('--loss', type = str, default='cross_entropy')
 parser.add_argument('--random_state', type=int, default=0, help='random state')
+parser.add_argument('--dual_t', type = bool, default=False, help = 'use dual T estimator or not')
 
 args = parser.parse_args()
 
@@ -99,7 +101,33 @@ optimizer = torch.optim.SGD(model.parameters(),
                                 weight_decay=args.weight_decay,
                                 nesterov=True)
 
-lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.scheduler_steps)
+### apply dual-T estimator
+if args.dual_t:
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 100, gamma = 0.1)
+    #args.loss = 'cls'
+
+    est_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=12,
+                                  shuffle=False,pin_memory=True)
+
+    true_t_matrix = train_loader.dataset.t_matrix
+    T_spadesuit, T_clubsuit = run_est_T_matrices(est_loader, model, args.num_classes)
+    # the emprical noisy class posterior is equal to the intermediate class posterior, therefore T_estimation and T_clubsuit are identical
+    T_estimation = T_clubsuit
+    T_estimator_err = l1_error_calculator(target = true_t_matrix, target_hat = T_clubsuit)
+    print("T-estimator error", T_estimator_err)
+
+    dual_T_estimation = compose_T_matrices(T_spadesuit=T_spadesuit, T_clubsuit = T_clubsuit)
+    dual_T_estimator_err = l1_error_calculator(target = true_t_matrix, target_hat = dual_T_estimation)  
+    print("DT-estimator error", dual_T_estimator_err)
+
+    T_noise_rate = get_noise_rate(T_estimation)
+    DT_noise_rate = get_noise_rate(dual_T_estimation)
+
+    dual_T_estimation = torch.Tensor(dual_T_estimation).cuda()
+else:
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.scheduler_steps)
 
 ### build second model for co_teaching 
 if args.loss in ['coteaching','coteaching_plus']:
@@ -121,7 +149,7 @@ if not os.path.exists(save_dir):
     os.system('mkdir -p %s' % save_dir)
 
 
-txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + '.txt' 
+txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.dual_t else '') + '.txt' 
 if os.path.exists(txtfile):
     os.system('rm %s' % txtfile)
 with open(txtfile, "a") as myfile:
@@ -158,6 +186,8 @@ for epoch in range(args.epochs):
     model.train()
     if args.loss in ['coteaching','coteaching_plus']:
         model2.train()
+    if args.dual_t:
+        train_loader.dataset.train_mode()
     #adjust_learning_rate(optimizer, epoch, alpha_plan)
     correct = correct2 = 0
     total = total2 = 0
@@ -169,6 +199,10 @@ for epoch in range(args.epochs):
         images = Variable(images).cuda()
         labels = Variable(labels).cuda()
         output = model(images)
+        if args.dual_t and args.loss == 'cls':
+            probs = F.softmax(output, dim=1)
+            probs = torch.matmul(probs, dual_T_estimation)
+            output = torch.log(probs+1e-12)
         if args.loss not in ['cores','cores_no_select','cores_logits_adjustment']:
             if args.loss in ['coteaching','coteaching_plus']:
                 output2 = model2(images)

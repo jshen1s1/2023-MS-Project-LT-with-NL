@@ -17,14 +17,12 @@ def l1_error_calculator(target, target_hat, is_percentage=True):
         return np.linalg.norm((target_hat-target), ord=1)
     
 def est_t_matrix(eta_corr, filter_outlier=False):
-
     # number of classes
     num_classes = eta_corr.shape[1]
     T = np.empty((num_classes, num_classes))
 
     # find a 'perfect example' for each class
     for i in np.arange(num_classes):
-
         if not filter_outlier:
             idx_best = np.argmax(eta_corr[:, i])
         else:
@@ -43,20 +41,20 @@ def get_noise_rate(t):
 
 def get_transition_matrices(est_loader, model, num_classes):
     model.eval()
-    est_loader.eval()
+    est_loader.dataset.eval()
     p = []
     T_spadesuit = np.zeros((num_classes,num_classes))
     with torch.no_grad():
-        for i, (images, n_target,_) in enumerate(est_loader):
+        for i, (images, labels, _, _) in enumerate(est_loader):
             images = images.cuda()
-            n_target = n_target.cuda()
+            labels = labels.cuda()
             pred = model(images)
             probs = F.softmax(pred, dim=1).cpu().data.numpy()
             _, pred = pred.topk(1, 1, True, True)           
             pred = pred.view(-1).cpu().data
-            n_target = n_target.view(-1).cpu().data
-            for i in range(len(n_target)): 
-                T_spadesuit[int(pred[i])][int(n_target[i])]+=1
+            labels = labels.view(-1).cpu().data
+            for i in range(len(labels)): 
+                T_spadesuit[int(pred[i])][int(labels[i])]+=1
             p += probs[:].tolist()  
     T_spadesuit = np.array(T_spadesuit)
     sum_matrix = np.tile(T_spadesuit.sum(axis = 1),(num_classes,1)).transpose()

@@ -96,7 +96,7 @@ def noisify_pairflip(y_train, noise, random_state=None, nb_classes=10):
         y_train = y_train_noisy
     #print P
 
-    return y_train, actual_noise
+    return y_train, actual_noise, P
 
 def noisify_multiclass_symmetric(y_train, noise, random_state=None, nb_classes=10):
     """mistakes:
@@ -121,14 +121,14 @@ def noisify_multiclass_symmetric(y_train, noise, random_state=None, nb_classes=1
         y_train = y_train_noisy
     #print P
 
-    return y_train, actual_noise
+    return y_train, actual_noise, P
 
 def noisify(dataset='mnist', nb_classes=10, train_labels=None, noise_type=None, noise_rate=0, random_state=0):
     if noise_type == 'pairflip':
-        train_noisy_labels, actual_noise_rate = noisify_pairflip(train_labels, noise_rate, random_state=0, nb_classes=nb_classes)
+        train_noisy_labels, actual_noise_rate, P = noisify_pairflip(train_labels, noise_rate, random_state=0, nb_classes=nb_classes)
     if noise_type == 'symmetric':
-        train_noisy_labels, actual_noise_rate = noisify_multiclass_symmetric(train_labels, noise_rate, random_state=0, nb_classes=nb_classes)
-    return train_noisy_labels, actual_noise_rate
+        train_noisy_labels, actual_noise_rate, P = noisify_multiclass_symmetric(train_labels, noise_rate, random_state=0, nb_classes=nb_classes)
+    return train_noisy_labels, actual_noise_rate, P
 
 
 
