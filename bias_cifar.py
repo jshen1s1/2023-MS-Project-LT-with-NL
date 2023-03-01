@@ -136,7 +136,7 @@ class CIFAR10_bias(data.Dataset):
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
             print('actual noise rate is',actual_noise_rate)
         if noise_type=='instance':
-            train_labels, actual_noise_rate = noisify_instance(train_data, train_labels,noise_rate=noise_rate, random_state=random_state)
+            train_labels, actual_noise_rate, self.t_matrix = noisify_instance(train_data, train_labels,noise_rate=noise_rate, random_state=random_state)
             print('actual noise rate is',actual_noise_rate)
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
             self.train_labels = train_labels

@@ -44,7 +44,8 @@ parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 parser.add_argument('--weight-decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')
 parser.add_argument('--loss', type = str, default='cross_entropy')
 parser.add_argument('--random_state', type=int, default=0, help='random state')
-parser.add_argument('--dual_t', type = bool, default=False, help = 'use dual T estimator or not')
+parser.add_argument('--dual_t', action='store_true', help = 'use dual T estimator or not')
+parser.add_argument('--rs', action='store_true', help = 're-scale weight vector or not')
 
 args = parser.parse_args()
 
@@ -61,7 +62,7 @@ elif args.dataset == 'cifar100':
 
 loss_dict = {'cross_entropy':cross_entropy,'focal_loss':focal_loss,'logits_adjustment':logits_adjustment,'cores':cores,'gce':gce,
             'cb_ce':cb_ce,'cb_focal':cb_focal,'cores_no_select':cores_no_select,'cores_logits_adjustment':cores_logits_adjustment,
-            'erl':elr,'coteaching':co_teaching,'coteaching_plus':co_teaching_plus,'cls':NLLL}
+            'erl':elr,'coteaching':co_teaching,'coteaching_plus':co_teaching_plus,'cls':NLLL, 'ldam': ldam, 'lade': lade}
 
 
 model = ResNet34(args.num_classes)
@@ -110,8 +111,11 @@ if args.dual_t:
                                   batch_size = args.batch_size, 
                                   num_workers=12,
                                   shuffle=False,pin_memory=True)
-
     true_t_matrix = train_loader.dataset.t_matrix
+
+    model = run_forward(train_loader =train_loader, model=model, optimizer=optimizer, scheduler=lr_scheduler, t_m = np.eye(args.num_classes), epochs=20)
+    #print("CE acc", ce_acc)
+
     T_spadesuit, T_clubsuit = run_est_T_matrices(est_loader, model, args.num_classes)
     # the emprical noisy class posterior is equal to the intermediate class posterior, therefore T_estimation and T_clubsuit are identical
     T_estimation = T_clubsuit
@@ -149,7 +153,7 @@ if not os.path.exists(save_dir):
     os.system('mkdir -p %s' % save_dir)
 
 
-txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.dual_t else '') + '.txt' 
+txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.dual_t else '') + ('RS' if args.rs else '') + '.txt' 
 if os.path.exists(txtfile):
     os.system('rm %s' % txtfile)
 with open(txtfile, "a") as myfile:
@@ -164,6 +168,22 @@ def adjust_learning_rate(optimizer, epoch,alpha_plan):
 best_acc = [0]
 def validate(val_loader, model, criterion):
     
+    if args.rs:
+        current_state = model.state_dict()
+        W = current_state['linear.weight']
+
+        num_sample = img_num_per_cls
+
+        gama = [0.3, 0.4]
+        idx = 0 if args.dataset == 'cifar10' else 1
+        ns = [ float(n) / max(num_sample) for n in num_sample ]
+        ns = [ n**gama[idx] for n in ns ]
+        ns = torch.FloatTensor(ns).unsqueeze(-1).cuda()
+        new_W = W / ns
+
+        current_state['linear.weight'] = new_W
+        model.load_state_dict(current_state)
+
     model.eval()
     correct = 0
     total = 0
@@ -173,6 +193,10 @@ def validate(val_loader, model, criterion):
             # compute output
             logits = model(images)
             outputs = F.softmax(logits, dim=1)
+            if args.dual_t and args.loss == 'cls':
+                probs = F.softmax(outputs, dim=1)
+                probs = torch.matmul(probs, dual_T_estimation)
+                outputs = torch.log(probs+1e-12)
             _, pred = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (pred.cpu() == labels).sum()
@@ -186,14 +210,16 @@ for epoch in range(args.epochs):
     model.train()
     if args.loss in ['coteaching','coteaching_plus']:
         model2.train()
+
     if args.dual_t:
         train_loader.dataset.train_mode()
-    #adjust_learning_rate(optimizer, epoch, alpha_plan)
+
+    ### Training  
     correct = correct2 = 0
     total = total2 = 0
     acc2 = 0
     idx_each_class_noisy = [[] for i in range(args.num_classes)]
-    for i, (images, labels,true_labels,indexes) in enumerate(train_loader):
+    for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
         ind=indexes.cpu().numpy().transpose()
         batch_num = len(indexes)
         images = Variable(images).cuda()
@@ -238,12 +264,15 @@ for epoch in range(args.epochs):
     noise_prior_cur = noise_prior_cur/sum(noise_prior_cur)
     noise_prior_all[:,epoch] = noise_prior_cur
 
+    ### evaluate 
     if args.loss in ['coteaching','coteaching_plus']:
         print('train acc',100.*correct/total,'train acc2',100.*correct2/total2)
         acc2 = validate(test_loader, model2, criterion)
     else:
         print('train acc',100.*correct/total)
     acc1 = validate(test_loader, model, criterion)
+
+    ### save record
     if max(acc1,acc2)>best_acc[0]:
         best_acc[0] = max(acc1,acc2)
         torch.save({'state_dict': model.state_dict()},save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate)+'.pth')

@@ -311,3 +311,57 @@ def elr(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):
         loss_all[ind,int(epoch/5)] = loss_numpy
     return  torch.sum(final_loss)/num_batch
 
+def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+    num_classes = len(img_num_per_cls)
+    num_batch = logits.shape[0]
+    max_m = 0.5
+    s = 30
+    idx = epoch // 160
+    beta = [0, 0.9999]
+    per_cls_weights = np.array([(1-beta[idx])/(1- beta[idx] ** N) for N in img_num_per_cls])
+    per_cls_weights = torch.FloatTensor(per_cls_weights / np.sum(per_cls_weights) * num_classes).cuda()
+
+    m_list = 1.0 / np.sqrt(np.sqrt(img_num_per_cls))
+    m_list = m_list * (max_m / np.max(m_list))
+    m_list = torch.cuda.FloatTensor(m_list)
+
+    index = torch.zeros_like(logits, dtype=torch.uint8)
+    index.scatter_(1, label.data.view(-1, 1), 1) # one-hot index
+
+    index_float = index.type(torch.cuda.FloatTensor)
+    batch_m = torch.matmul(m_list[None, :], index_float.transpose(0,1))
+    batch_m = batch_m.view((-1, 1))
+    x_m = logits - batch_m * s
+
+    output = torch.where(index, x_m, logits)
+    loss =  F.cross_entropy(output, label, weight=per_cls_weights)
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return  torch.sum(loss)/num_batch
+
+def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+    num_batch = logits.shape[0]
+    num_classes = len(img_num_per_cls)
+    img_num_per_cls = torch.tensor(img_num_per_cls)
+    remine_lambda=0.1
+    prior = (img_num_per_cls / img_num_per_cls.sum()).cuda()
+    balanced_prior = torch.tensor(1. / num_classes).float().cuda()
+    cls_weight = (img_num_per_cls.float() / torch.sum(img_num_per_cls.float())).cuda()
+    
+    per_cls_pred_spread = logits.T * (label == torch.arange(0, num_classes).view(-1, 1).type_as(label))
+    pred_spread = (logits - torch.log(prior + 1e-9) + torch.log(balanced_prior + 1e-9)).T
+
+    num_samples_per_cls = torch.sum(label == torch.arange(0, num_classes).view(-1, 1).type_as(label), -1).float()
+
+    N = per_cls_pred_spread.size(-1)
+    first_term = torch.sum(per_cls_pred_spread, -1) / (num_samples_per_cls + 1e-8)
+    second_term = torch.logsumexp(pred_spread, -1) - np.log(N)
+    reg = (second_term ** 2) * remine_lambda
+
+    loss = first_term - second_term - reg
+    loss = -torch.sum(loss * cls_weight)
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
