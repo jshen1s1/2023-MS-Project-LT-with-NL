@@ -7,7 +7,7 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import math
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -63,7 +63,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, num_classes=10, WVN=False):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
@@ -74,6 +74,23 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
         self.linear = nn.Linear(512*block.expansion, num_classes)
+
+        if WVN:
+            self.linear.register_backward_hook(self.__WVN__)
+
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                    m.weight.data.normal_(0, math.sqrt(2. / n))
+                elif isinstance(m, nn.BatchNorm2d):
+                    m.weight.data.fill_(1)
+                    m.bias.data.zero_()
+
+    def __WVN__(self, module, grad_input, grad_output):
+        W = module.weight.data
+        W_norm = W / torch.norm(W, p=2, dim=1, keepdim=True)
+
+        module.weight.data.copy_(W_norm)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -98,8 +115,8 @@ class ResNet(nn.Module):
 def ResNet18(num_classes):
     return ResNet(BasicBlock, [2,2,2,2],num_classes=num_classes)
 
-def ResNet34(num_classes):
-    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes)
+def ResNet34(num_classes,WVN=False):
+    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,WVN=WVN)
 
 def ResNet50(num_classes):
     return ResNet(Bottleneck, [3,4,6,3],num_classes=num_classes)

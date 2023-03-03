@@ -46,6 +46,7 @@ parser.add_argument('--loss', type = str, default='cross_entropy')
 parser.add_argument('--random_state', type=int, default=0, help='random state')
 parser.add_argument('--dual_t', action='store_true', help = 'use dual T estimator or not')
 parser.add_argument('--rs', action='store_true', help = 're-scale weight vector or not')
+parser.add_argument('--WVN', action='store_true', help = 'whether to use WVN or not')
 
 args = parser.parse_args()
 
@@ -65,7 +66,7 @@ loss_dict = {'cross_entropy':cross_entropy,'focal_loss':focal_loss,'logits_adjus
             'erl':elr,'coteaching':co_teaching,'coteaching_plus':co_teaching_plus,'cls':NLLL, 'ldam': ldam, 'lade': lade}
 
 
-model = ResNet34(args.num_classes)
+model = ResNet34(args.num_classes, WVN=args.WVN)
 
 train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state)
 
@@ -153,7 +154,7 @@ if not os.path.exists(save_dir):
     os.system('mkdir -p %s' % save_dir)
 
 
-txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.dual_t else '') + ('RS' if args.rs else '') + '.txt' 
+txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.dual_t else '') + ('RS' if args.rs else '') + ('WVN' if args.WVN else '') + '.txt' 
 if os.path.exists(txtfile):
     os.system('rm %s' % txtfile)
 with open(txtfile, "a") as myfile:
@@ -166,9 +167,9 @@ def adjust_learning_rate(optimizer, epoch,alpha_plan):
         param_group['lr']=alpha_plan[epoch]
 '''
 best_acc = [0]
-def validate(val_loader, model, criterion):
+def validate(val_loader, model, criterion, epoch):
     
-    if args.rs:
+    if args.rs and epoch == args.epochs-1:
         current_state = model.state_dict()
         W = current_state['linear.weight']
 
@@ -267,15 +268,15 @@ for epoch in range(args.epochs):
     ### evaluate 
     if args.loss in ['coteaching','coteaching_plus']:
         print('train acc',100.*correct/total,'train acc2',100.*correct2/total2)
-        acc2 = validate(test_loader, model2, criterion)
+        acc2 = validate(test_loader, model2, criterion, epoch)
     else:
         print('train acc',100.*correct/total)
-    acc1 = validate(test_loader, model, criterion)
+    acc1 = validate(test_loader, model, criterion, epoch)
 
     ### save record
     if max(acc1,acc2)>best_acc[0]:
         best_acc[0] = max(acc1,acc2)
-        torch.save({'state_dict': model.state_dict()},save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate)+'.pth')
+        torch.save({'state_dict': model.state_dict()},save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.dual_t else '') + ('RS' if args.rs else '') + ('WVN' if args.WVN else '') + '.pth')
     print('best acc',best_acc[0])
     print('last acc', max(acc1,acc2))
 
