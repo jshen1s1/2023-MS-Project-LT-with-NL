@@ -312,10 +312,11 @@ def elr(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):
     return  torch.sum(final_loss)/num_batch
 
 def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
-    num_classes = len(img_num_per_cls)
     num_batch = logits.shape[0]
+    num_classes = len(img_num_per_cls)
     max_m = 0.5
     s = 30
+    ### DRW
     idx = epoch // 160
     beta = [0, 0.9999]
     per_cls_weights = np.array([(1-beta[idx])/(1- beta[idx] ** N) for N in img_num_per_cls])
@@ -361,6 +362,30 @@ def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
 
     loss = first_term - second_term - reg
     loss = -torch.sum(loss * cls_weight)
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
+
+def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example):
+    num_batch = logits.shape[0]
+    num_classes = len(img_num_per_cls)
+    beta = 0.9999
+    per_cls_weights  = np.array([(1-beta)/(1- beta ** N) for N in img_num_per_cls])
+    per_cls_weights  = torch.FloatTensor(per_cls_weights  / np.sum(per_cls_weights ) * num_classes).cuda()
+
+    T = 2
+    alpha = 1
+    pred_t = F.softmax(logits2/T, dim=1)
+    pred_t = pred_t * per_cls_weights 
+    pred_t = pred_t / pred_t.sum(1)[:, None]
+
+    kd = F.kl_div(F.log_softmax(logits/T, dim=1),
+                    pred_t,
+                    reduction='none').mean(dim=0)
+    kd_loss = kd.sum() * T * T
+    ce_loss = F.cross_entropy(logits, label)
+    loss = alpha * kd_loss + ce_loss
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy

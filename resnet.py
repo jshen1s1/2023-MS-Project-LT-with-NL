@@ -7,7 +7,26 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init as init
+from torch.nn import Parameter
 import math
+
+def _weights_init(m):
+    classname = m.__class__.__name__
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+        init.kaiming_normal_(m.weight)
+
+class NormedLinear(nn.Module):
+
+    def __init__(self, in_features, out_features):
+        super(NormedLinear, self).__init__()
+        self.weight = Parameter(torch.Tensor(in_features, out_features))
+        self.weight.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+
+    def forward(self, x):
+        out = F.normalize(x, dim=1).mm(F.normalize(self.weight, dim=0))
+        return out
+
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -63,7 +82,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10, WVN=False):
+    def __init__(self, block, num_blocks, num_classes=10, use_norm=False, WVN=False):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
@@ -73,7 +92,11 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512*block.expansion, num_classes)
+        if use_norm:
+            self.linear = NormedLinear(512*block.expansion, num_classes)
+            self.apply(_weights_init)
+        else:
+            self.linear = nn.Linear(512*block.expansion, num_classes)
 
         if WVN:
             self.linear.register_backward_hook(self.__WVN__)
@@ -115,8 +138,8 @@ class ResNet(nn.Module):
 def ResNet18(num_classes):
     return ResNet(BasicBlock, [2,2,2,2],num_classes=num_classes)
 
-def ResNet34(num_classes,WVN=False):
-    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,WVN=WVN)
+def ResNet34(num_classes, use_norm=False, WVN=False):
+    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,use_norm=use_norm,WVN=WVN)
 
 def ResNet50(num_classes):
     return ResNet(Bottleneck, [3,4,6,3],num_classes=num_classes)

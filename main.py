@@ -24,10 +24,11 @@ import numpy as np
 from resnet import ResNet34
 from loss import *
 from metrics import *
+from sampler import *
 np.random.seed(0)
 
 parser = argparse.ArgumentParser(description='Cross Entropy')
-parser.add_argument('--model_path', type=str, default='results/128_0.5_200_512_1000_model.pth',
+parser.add_argument('--model_path', type=str, default='results/cifar10/cross_entropy/symmetric0.3exp0.02.pth',
                     help='The pretrained model path')
 parser.add_argument('--batch_size', type=int, default=64, help='Number of images in each mini-batch')
 parser.add_argument('--lr', type = float, default=0.1)
@@ -47,6 +48,7 @@ parser.add_argument('--random_state', type=int, default=0, help='random state')
 parser.add_argument('--dual_t', action='store_true', help = 'use dual T estimator or not')
 parser.add_argument('--rs', action='store_true', help = 're-scale weight vector or not')
 parser.add_argument('--WVN', action='store_true', help = 'whether to use WVN or not')
+parser.add_argument('--resample', action='store_true', help = 'whether to use resample or not')
 
 args = parser.parse_args()
 
@@ -63,23 +65,26 @@ elif args.dataset == 'cifar100':
 
 loss_dict = {'cross_entropy':cross_entropy,'focal_loss':focal_loss,'logits_adjustment':logits_adjustment,'cores':cores,'gce':gce,
             'cb_ce':cb_ce,'cb_focal':cb_focal,'cores_no_select':cores_no_select,'cores_logits_adjustment':cores_logits_adjustment,
-            'erl':elr,'coteaching':co_teaching,'coteaching_plus':co_teaching_plus,'cls':NLLL, 'ldam': ldam, 'lade': lade}
+            'erl':elr,'coteaching':co_teaching,'coteaching_plus':co_teaching_plus,'cls':NLLL, 'ldam': ldam, 'lade': lade, 'BKDloss':BKDLoss}
 
-
-model = ResNet34(args.num_classes, WVN=args.WVN)
+use_norm = True if args.loss == 'ldam' else False
+model = ResNet34(args.num_classes, use_norm, WVN=args.WVN)
 
 train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state)
-
+train_sampler = ImbalancedDatasetSampler(train_dataset) if args.resample else None
 
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                   batch_size = args.batch_size, 
                                   num_workers=12,
-                                  shuffle=True,pin_memory=True)
+                                  shuffle=(train_sampler is None),
+                                  pin_memory=True,
+                                  sampler=train_sampler)
 
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                   batch_size = args.batch_size, 
                                   num_workers=12,
-                                  shuffle=False,pin_memory=True)
+                                  shuffle=False,
+                                  pin_memory=True)
 
 
 img_num_per_cls = np.array(train_dataset.get_cls_num_list())
@@ -137,7 +142,7 @@ else:
 ### build second model for co_teaching 
 if args.loss in ['coteaching','coteaching_plus']:
     forget_rate = args.noise_rate
-    model2 = ResNet34(args.num_classes)
+    model2 = ResNet34(args.num_classes, use_norm, WVN=args.WVN)
     model2.cuda()
     optimizer2 = torch.optim.SGD(model2.parameters(),
                                 args.lr,
@@ -147,6 +152,18 @@ if args.loss in ['coteaching','coteaching_plus']:
     lr_scheduler2 = torch.optim.lr_scheduler.MultiStepLR(optimizer2, milestones=args.scheduler_steps)
     rate_schedule = np.ones(args.epochs)*forget_rate 
     rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
+
+### load teacher model for BKD loss
+if args.loss == 'BKDloss':
+    if not args.model_path and args.noise_type == None:
+        save_path = 'results/cifar10/cross_entropy/None0.3exp0.02.pth'
+    elif not args.model_path and args.lt_type == None:
+        save_path = 'results/cifar10/cross_entropy/symmetric0.3None0.02.pth'
+    else:
+        save_path = args.model_path
+    model2 = ResNet34(args.num_classes, use_norm, WVN=args.WVN)
+    model2.load_state_dict(torch.load(save_path)['state_dict'])
+    model2.cuda()
 
 ### saving path
 save_dir = 'results'+'/' +args.dataset + '/' +args.loss
@@ -237,6 +254,11 @@ for epoch in range(args.epochs):
                     loss, loss2 = co_teaching(epoch, output, output2, labels, rate_schedule[epoch], ind, epoch*i)
                 else:
                     loss, loss2 = criterion(epoch, output, output2, labels, rate_schedule[epoch], ind, epoch*i)
+            elif args.loss == 'BKDloss':
+                model2.eval()
+                with torch.no_grad():
+                    output2 = model2(images)
+                loss = criterion(epoch,output,output2,labels,ind,img_num_per_cls,loss_all,num_example)
             else:
                 loss = criterion(epoch,output,labels,ind,img_num_per_cls,loss_all,num_example)
         else:
