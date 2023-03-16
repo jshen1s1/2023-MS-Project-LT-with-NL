@@ -18,7 +18,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
             if num_samples is None else num_samples
             
         # distribution of classes in the dataset 
-        label_to_count = [0] * len(np.unique(dataset.targets))
+        label_to_count = [0] * len(np.unique(dataset.train_labels))
         for idx in self.indices:
             label = self._get_label(dataset, idx)
             label_to_count[label] += 1
@@ -33,10 +33,10 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
         self.weights = torch.DoubleTensor(weights)
         
     def _get_label(self, dataset, idx):
-        return dataset.targets[idx]
+        return dataset.train_labels[idx]
                 
     def __iter__(self):
-        return iter(torch.multinomial(self.weights, self.num_samples, replacement=True).tolist())
+        return iter(torch.multinomial(self.weights, self.num_samples, replacement=False).tolist())
 
     def __len__(self):
         return self.num_samples

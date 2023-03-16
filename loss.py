@@ -60,8 +60,8 @@ def focal_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     focal_weights = torch.pow((1-p)*label + p * (1-label), gamma).cuda()
     loss = F.binary_cross_entropy_with_logits(logits, label, reduction = 'none') * focal_weights
     loss_numpy = loss.data.cpu().numpy()
-    if epoch%5==0:
-        loss_all[ind,int(epoch/5)] = loss_numpy
+    #if epoch%5==0:
+    #    loss_all[ind,int(epoch/5)] = loss_numpy
     return torch.sum(loss)/num_batch
 
 def cb_ce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
@@ -90,8 +90,8 @@ def cb_focal(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     loss_f = F.binary_cross_entropy_with_logits(logits, label, reduction = 'none') * focal_weights
     loss = loss_f * weight.view(-1, 1)
     loss_numpy = loss.data.cpu().numpy()
-    if epoch%5==0:
-        loss_all[ind,int(epoch/5)] = loss_numpy
+    #if epoch%5==0:
+    #    loss_all[ind,int(epoch/5)] = loss_numpy
     return torch.sum(loss)/num_batch
 
 
@@ -119,7 +119,7 @@ def cores_no_select(epoch,logits,label,ind,img_num_per_cls,noise_prior,loss_all,
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
-    loss_ = -torch.log(F.softmax(logits) + 1e-8)
+    #loss_ = -torch.log(F.softmax(logits) + 1e-8)
     if noise_prior is None:
         loss =  loss - beta*torch.mean(loss_,1)
     else:
@@ -297,7 +297,7 @@ def elr(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = 0.7
-    gamma = 7
+    lambda_ = 3.0
     target = torch.zeros(num_example, num_classes).cuda()
     y_pred = F.softmax(logits,dim=1)
     y_pred = torch.clamp(y_pred, 1e-4, 1.0-1e-4)
@@ -305,17 +305,19 @@ def elr(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):
     target[ind] = beta * target[ind] + (1-beta) * ((y_pred_)/(y_pred_).sum(dim=1,keepdim=True))
     ce_loss = F.cross_entropy(logits, label)
     elr_reg = ((1-(target[ind] * y_pred).sum(dim=1)).log()).mean()
-    final_loss = ce_loss + gamma*elr_reg
+    final_loss = ce_loss + lambda_*elr_reg
     loss_numpy = final_loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
     return  torch.sum(final_loss)/num_batch
 
+
+
 def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     max_m = 0.5
-    s = 30
+    s = 30.0
     ### DRW
     idx = epoch // 160
     beta = [0, 0.9999]
@@ -340,6 +342,8 @@ def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
     return  torch.sum(loss)/num_batch
+
+
 
 def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     num_batch = logits.shape[0]
@@ -367,6 +371,8 @@ def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
         loss_all[ind,int(epoch/5)] = loss_numpy
     return torch.sum(loss)/num_batch
 
+
+
 def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
@@ -374,8 +380,8 @@ def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example)
     per_cls_weights  = np.array([(1-beta)/(1- beta ** N) for N in img_num_per_cls])
     per_cls_weights  = torch.FloatTensor(per_cls_weights  / np.sum(per_cls_weights ) * num_classes).cuda()
 
-    T = 2
-    alpha = 1
+    T = 2.0
+    alpha = 1.0
     pred_t = F.softmax(logits2/T, dim=1)
     pred_t = pred_t * per_cls_weights 
     pred_t = pred_t / pred_t.sum(1)[:, None]
@@ -386,6 +392,80 @@ def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example)
     kd_loss = kd.sum() * T * T
     ce_loss = F.cross_entropy(logits, label)
     loss = alpha * kd_loss + ce_loss
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
+
+
+
+def CBS_RRS(epoch,logits,label,logits2,label2,ind,img_num_per_cls,loss_all,num_example):
+    num_batch = logits.shape[0]
+    loss_CBS = F.cross_entropy(logits, label)
+    loss_RRS = F.cross_entropy(logits2, label2)
+    loss = 0.5 * loss_CBS + loss_RRS
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
+
+
+
+def IB_Loss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example):
+    num_classes = len(img_num_per_cls)
+    num_batch = logits.shape[0]
+    alpha = 1000.0
+    epsilon = 0.001
+    per_cls_weights  = np.array([1 / N for N in img_num_per_cls])
+    per_cls_weights  = torch.FloatTensor(per_cls_weights  / np.sum(per_cls_weights ) * num_classes).cuda()
+    grads = torch.sum(torch.abs(F.softmax(logits, dim=1) - F.one_hot(label, num_classes)), 1)
+    ib = grads*features.reshape(-1)
+    ib = (alpha / (ib + epsilon)).cuda()
+
+    loss = F.cross_entropy(logits, label, reduction='none', weight=per_cls_weights) * ib
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
+
+
+
+def IB_FocalLoss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example):
+    num_classes = len(img_num_per_cls)
+    num_batch = logits.shape[0]
+    alpha = 1000.0
+    epsilon = 0.001
+    gamma = 1.0
+    per_cls_weights  = np.array([1 / N for N in img_num_per_cls])
+    per_cls_weights  = torch.FloatTensor(per_cls_weights  / np.sum(per_cls_weights ) * num_classes).cuda()
+    grads = torch.sum(torch.abs(F.softmax(logits, dim=1) - F.one_hot(label, num_classes)), 1)
+    ib = grads*features.reshape(-1)
+    ib = (alpha / (ib + epsilon)).cuda()
+
+    ce_loss = F.cross_entropy(logits, label, reduction='none', weight=per_cls_weights)
+    p = torch.exp(-ce_loss)
+    loss = (1-p) ** gamma * ce_loss * ib
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
+
+
+
+def vs_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+    num_classes = len(img_num_per_cls)
+    num_batch = logits.shape[0]
+    gamma = 0.2
+    tau = 1.2
+    cls_probs = img_num_per_cls / img_num_per_cls.sum()
+    Delta_list = (1.0 / np.array(img_num_per_cls)) ** gamma
+    Delta_list = Delta_list / np.min(Delta_list)
+    iota_list = tau * np.log(cls_probs)
+    iota_list = torch.cuda.FloatTensor(iota_list)
+    Delta_list = torch.cuda.FloatTensor(Delta_list)
+
+    output = logits / Delta_list + iota_list
+    loss = F.cross_entropy(output, label)
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy

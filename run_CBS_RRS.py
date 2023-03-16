@@ -49,14 +49,9 @@ parser.add_argument('--dual_t', action='store_true', help = 'use dual T estimato
 parser.add_argument('--rs', action='store_true', help = 're-scale weight vector or not')
 parser.add_argument('--WVN', action='store_true', help = 'whether to use WVN or not')
 parser.add_argument('--resample', action='store_true', help = 'whether to use resample or not')
+parser.add_argument('--CBS_RRS', action='store_true', help = 'whether to use CBS+RRS or not')
 
 args = parser.parse_args()
-
-
-def load_network(network, model_dir=None):
-    save_path = args.model_path if model_dir is None else model_dir
-    network.load_state_dict(torch.load(save_path)['state_dict'])
-    return network
 
 if args.dataset == 'cifar10':
     args.scheduler_steps = [60,120]
@@ -72,20 +67,31 @@ elif args.dataset == 'cifar100':
 loss_dict = {'cross_entropy':cross_entropy,'focal_loss':focal_loss,'logits_adjustment':logits_adjustment,'cores':cores,'gce':gce,
             'cb_ce':cb_ce,'cb_focal':cb_focal,'cores_no_select':cores_no_select,'cores_logits_adjustment':cores_logits_adjustment,
             'erl':elr,'coteaching':co_teaching,'coteaching_plus':co_teaching_plus,'cls':NLLL, 'ldam': ldam, 'lade': lade, 'BKDloss':BKDLoss,
-            'IB_Loss': IB_Loss, 'IB_FocalLoss': IB_FocalLoss, 'vs_loss':vs_loss}
+            'CBS+RRS': CBS_RRS}
 
+if args.CBS_RRS:
+    args.loss = 'CBS+RRS'
+    args.resample = True
 use_norm = True if args.loss == 'ldam' else False
 model = ResNet34(args.num_classes, use_norm, WVN=args.WVN)
 
 train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state)
-train_sampler = ImbalancedDatasetSampler(train_dataset) if args.resample else None
+class_balanced_sampler = ImbalancedDatasetSampler(train_dataset) if args.resample else None
+regular_random_sampler = torch.utils.data.RandomSampler(train_dataset) if args.resample else None
 
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                   batch_size = args.batch_size, 
                                   num_workers=12,
-                                  shuffle=(train_sampler is None),
+                                  shuffle=(class_balanced_sampler is None),
                                   pin_memory=True,
-                                  sampler=train_sampler)
+                                  sampler=class_balanced_sampler)
+
+train_loader_2 = torch.utils.data.DataLoader(dataset=train_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=12,
+                                  shuffle=(regular_random_sampler is None),
+                                  pin_memory=True,
+                                  sampler=regular_random_sampler)
 
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                   batch_size = args.batch_size, 
@@ -117,60 +123,6 @@ optimizer = torch.optim.SGD(model.parameters(),
 
 lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.scheduler_steps)
 
-### apply dual-T estimator
-if args.dual_t:
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 100, gamma = 0.1)
-    #args.loss = 'cls'
-
-    est_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                  batch_size = args.batch_size, 
-                                  num_workers=12,
-                                  shuffle=False,pin_memory=True)
-    true_t_matrix = train_loader.dataset.t_matrix
-
-    model = run_forward(train_loader =train_loader, model=model, optimizer=optimizer, scheduler=lr_scheduler, t_m = np.eye(args.num_classes), epochs=20)
-    #print("CE acc", ce_acc)
-
-    T_spadesuit, T_clubsuit = run_est_T_matrices(est_loader, model, args.num_classes)
-    # the emprical noisy class posterior is equal to the intermediate class posterior, therefore T_estimation and T_clubsuit are identical
-    T_estimation = T_clubsuit
-    T_estimator_err = l1_error_calculator(target = true_t_matrix, target_hat = T_clubsuit)
-    print("T-estimator error", T_estimator_err)
-
-    dual_T_estimation = compose_T_matrices(T_spadesuit=T_spadesuit, T_clubsuit = T_clubsuit)
-    dual_T_estimator_err = l1_error_calculator(target = true_t_matrix, target_hat = dual_T_estimation)  
-    print("DT-estimator error", dual_T_estimator_err)
-
-    T_noise_rate = get_noise_rate(T_estimation)
-    DT_noise_rate = get_noise_rate(dual_T_estimation)
-
-    dual_T_estimation = torch.Tensor(dual_T_estimation).cuda()
-    
-### build second model for co_teaching 
-if args.loss in ['coteaching','coteaching_plus']:
-    forget_rate = args.noise_rate
-    model2 = ResNet34(args.num_classes, use_norm, WVN=args.WVN)
-    model2.cuda()
-    optimizer2 = torch.optim.SGD(model2.parameters(),
-                                args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay,
-                                nesterov=True)
-    lr_scheduler2 = torch.optim.lr_scheduler.MultiStepLR(optimizer2, milestones=args.scheduler_steps)
-    rate_schedule = np.ones(args.epochs)*forget_rate 
-    rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
-
-### load teacher model for BKD loss
-if args.loss == 'BKDloss':
-    if not args.model_path and args.noise_type == None:
-        save_path = 'results/cifar10/cross_entropy/None0.3exp0.02.pth'
-    elif not args.model_path and args.lt_type == None:
-        save_path = 'results/cifar10/cross_entropy/symmetric0.3None0.02.pth'
-    else:
-        save_path = args.model_path
-    model2 = ResNet34(args.num_classes, use_norm, WVN=args.WVN)
-    model2 = load_network(model2, save_path)
-    model2.cuda()
 
 ### saving path
 save_dir = 'results'+'/' +args.dataset + '/' +args.loss
@@ -192,22 +144,6 @@ def adjust_learning_rate(optimizer, epoch,alpha_plan):
 '''
 best_acc = [0]
 def validate(val_loader, model, criterion, epoch):
-    
-    if args.rs and epoch == args.epochs-1:
-        current_state = model.state_dict()
-        W = current_state['linear.weight']
-
-        num_sample = img_num_per_cls
-
-        gama = [0.3, 0.4]
-        idx = 0 if args.dataset == 'cifar10' else 1
-        ns = [ float(n) / max(num_sample) for n in num_sample ]
-        ns = [ n**gama[idx] for n in ns ]
-        ns = torch.FloatTensor(ns).unsqueeze(-1).cuda()
-        new_W = W / ns
-
-        current_state['linear.weight'] = new_W
-        model.load_state_dict(current_state)
 
     model.eval()
     correct = 0
@@ -218,10 +154,6 @@ def validate(val_loader, model, criterion, epoch):
             # compute output
             logits, features = model(images)
             outputs = F.softmax(logits, dim=1)
-            if args.dual_t and args.loss == 'cls':
-                probs = F.softmax(outputs, dim=1)
-                probs = torch.matmul(probs, dual_T_estimation)
-                outputs = torch.log(probs+1e-12)
             _, pred = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (pred.cpu() == labels).sum()
@@ -233,11 +165,7 @@ def validate(val_loader, model, criterion, epoch):
 for epoch in range(args.epochs):
     print('current epoch',epoch)
     model.train()
-    if args.loss in ['coteaching','coteaching_plus']:
-        model2.train()
-
-    if args.dual_t:
-        train_loader.dataset.train_mode()
+    data_loader_iterator = iter(train_loader_2)
 
     ### Training  
     correct = correct2 = 0
@@ -245,32 +173,22 @@ for epoch in range(args.epochs):
     acc2 = 0
     idx_each_class_noisy = [[] for i in range(args.num_classes)]
     for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
+        try:
+            images2, labels2, true_labels2, indexes2 = next(data_loader_iterator)
+        except StopIteration:
+            data_loader_iterator = iter(train_loader_2)
+            images2, labels2, true_labels2, indexes2 = next(data_loader_iterator)
         ind=indexes.cpu().numpy().transpose()
         batch_num = len(indexes)
         images = Variable(images).cuda()
         labels = Variable(labels).cuda()
+        images2 = Variable(images2).cuda()
+        labels2 = Variable(labels2).cuda()
         output, features = model(images)
-        if args.dual_t and args.loss == 'cls':
-            probs = F.softmax(output, dim=1)
-            probs = torch.matmul(probs, dual_T_estimation)
-            output = torch.log(probs+1e-12)
+        output2, features2 = model(images2)
         if args.loss not in ['cores','cores_no_select','cores_logits_adjustment']:
-            if args.loss in ['coteaching','coteaching_plus']:
-                output2, features2 = model2(images)
-                if args.loss == 'coteaching_plus' and epoch < init_epoch:
-                    loss, loss2 = co_teaching(epoch, output, output2, labels, rate_schedule[epoch], ind, epoch*i)
-                else:
-                    loss, loss2 = criterion(epoch, output, output2, labels, rate_schedule[epoch], ind, epoch*i)
-            elif args.loss == 'BKDloss':
-                model2.eval()
-                with torch.no_grad():
-                    output2, features2 = model2(images)
-                loss = criterion(epoch,output,output2,labels,ind,img_num_per_cls,loss_all,num_example)
-            elif 'IB' in args.loss:
-                if epoch < 100:
-                    loss = cross_entropy(epoch,output,labels,ind,img_num_per_cls,loss_all,num_example)
-                else:
-                    loss = criterion(epoch,output,labels,features,ind,img_num_per_cls,loss_all,num_example)
+            if args.loss == 'CBS+RRS':
+                loss = criterion(epoch,output,labels,output2,labels2,ind,img_num_per_cls,loss_all,num_example)
             else:
                 loss = criterion(epoch,output,labels,ind,img_num_per_cls,loss_all,num_example)
         else:
@@ -284,27 +202,14 @@ for epoch in range(args.epochs):
         _, predicted = output.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
-        if args.loss in ['coteaching','coteaching_plus']:
-            optimizer2.zero_grad()
-            loss2.backward()
-            optimizer2.step()
-            _, predicted2 = output2.max(1)
-            total2 += labels.size(0)
-            correct2 += predicted2.eq(labels).sum().item()        
     lr_scheduler.step()
-    if args.loss in ['coteaching','coteaching_plus']:
-        lr_scheduler2.step()
     noise_prior_delta = np.array([len(idx_each_class_noisy[i]) for i in range(args.num_classes)])
     noise_prior_cur = noise_prior*num_training_samples - noise_prior_delta
     noise_prior_cur = noise_prior_cur/sum(noise_prior_cur)
     noise_prior_all[:,epoch] = noise_prior_cur
 
     ### evaluate 
-    if args.loss in ['coteaching','coteaching_plus']:
-        print('train acc',100.*correct/total,'train acc2',100.*correct2/total2)
-        acc2 = validate(test_loader, model2, criterion, epoch)
-    else:
-        print('train acc',100.*correct/total)
+    print('train acc',100.*correct/total)
     acc1 = validate(test_loader, model, criterion, epoch)
 
     ### save record
@@ -322,5 +227,3 @@ for epoch in range(args.epochs):
     np.save(save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate)+'_noise_or_not.npy',train_dataset.noise_or_not)
     np.save(save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate)+'_train_labels.npy',train_dataset.train_labels)
     np.save(save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate)+'_true_labels.npy',train_dataset.true_labels)
-
-
