@@ -6,6 +6,7 @@ import os.path
 import copy
 import hashlib
 import errno
+import shutil
 import numpy as np
 from numpy.testing import assert_array_almost_equal
 import torch
@@ -208,5 +209,11 @@ def adjust_learning_rate(optimizer, epoch, base_lr, ajust_period=70):
         param_group['lr'] = lr
 
 
+def save_checkpoint(path, state, is_best):
+    
+    filename = path
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, filename.replace('pth', 'best.pth'))
 
 

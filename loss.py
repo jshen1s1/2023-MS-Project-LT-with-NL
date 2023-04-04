@@ -22,7 +22,7 @@ def f_beta(epoch):
     return beta[epoch]
 
 
-def cross_entropy(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def cross_entropy(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     loss = F.cross_entropy(logits, label, reduce = False)
     loss_numpy = loss.data.cpu().numpy()
@@ -30,7 +30,7 @@ def cross_entropy(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
         loss_all[ind,int(epoch/5)] = loss_numpy
     return torch.sum(loss)/num_batch
 
-def NLLL(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def NLLL(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     loss = F.nll_loss(logits, label, reduce = False)
     loss_numpy = loss.data.cpu().numpy()
@@ -38,7 +38,7 @@ def NLLL(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
         loss_all[ind,int(epoch/5)] = loss_numpy
     return torch.sum(loss)/num_batch
 
-def gce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def gce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     logits = F.softmax(logits,dim=1)
     q = 0.7
@@ -51,7 +51,7 @@ def gce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     return loss
 
 
-def focal_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def focal_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_classes = len(img_num_per_cls)
     num_batch = logits.shape[0]
     gamma = 2.0
@@ -64,7 +64,7 @@ def focal_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     #    loss_all[ind,int(epoch/5)] = loss_numpy
     return torch.sum(loss)/num_batch
 
-def cb_ce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def cb_ce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = 0.9999
@@ -77,7 +77,7 @@ def cb_ce(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     return torch.sum(loss)/num_batch
 
 
-def cb_focal(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def cb_focal(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = 0.9999
@@ -95,7 +95,7 @@ def cb_focal(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
     return torch.sum(loss)/num_batch
 
 
-def logits_adjustment(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def logits_adjustment(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     tro = 1.0
     label_frequency = img_num_per_cls/sum(img_num_per_cls)
     adjustment = np.log(label_frequency ** tro + 1e-12)
@@ -313,7 +313,27 @@ def elr(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):
 
 
 
-def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def semi_loss(epoch, logits, logits_x, logits_u, label_x, label_u, ind, img_num_per_cls, warm_up):
+    num_classes = len(img_num_per_cls)
+    probs_u = torch.softmax(logits_u, dim=1)
+    Lx = -torch.mean(torch.sum(F.log_softmax(logits_x, dim=1) * label_x, dim=1))
+    Lu = torch.mean((probs_u - label_u)**2)
+
+    rampup_length = 16.0
+    current = np.clip((epoch-warm_up) / rampup_length, 0.0, 1.0)
+    lambda_u = 25
+    lamb = lambda_u * float(current)
+
+    prior = torch.ones(num_classes)/num_classes
+    prior = prior.cuda()        
+    pred_mean = torch.softmax(logits, dim=1).mean(0)
+    penalty = torch.sum(prior*torch.log(prior/pred_mean))
+
+    loss = Lx + lamb * Lu  + penalty
+    return loss
+
+
+def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     max_m = 0.5
@@ -345,7 +365,7 @@ def ldam(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
 
 
 
-def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     img_num_per_cls = torch.tensor(img_num_per_cls)
@@ -373,7 +393,33 @@ def lade(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
 
 
 
-def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example):
+
+def KDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example=None):
+    num_batch = logits.shape[0]
+    num_classes = len(img_num_per_cls)
+    beta = 0.9999
+    per_cls_weights  = np.array([(1-beta)/(1- beta ** N) for N in img_num_per_cls])
+    per_cls_weights  = torch.FloatTensor(per_cls_weights  / np.sum(per_cls_weights ) * num_classes).cuda()
+
+    T = 2.0
+    alpha = 1.0
+    
+    kd = F.kl_div(F.log_softmax(logits/T, dim=1),
+                    F.softmax(logits2/T, dim=1),
+                    reduction='none').mean(dim=0)
+    kd_loss = F.kl_div(F.log_softmax(logits/T, dim=1),
+                    F.softmax(logits2/T, dim=1),
+                    reduction='batchmean') * T * T
+    ce_loss = F.cross_entropy(logits, label)
+    loss = alpha * kd_loss + ce_loss
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch
+
+
+
+def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = 0.9999
@@ -399,7 +445,7 @@ def BKDLoss(epoch,logits,logits2,label,ind,img_num_per_cls,loss_all,num_example)
 
 
 
-def CBS_RRS(epoch,logits,label,logits2,label2,ind,img_num_per_cls,loss_all,num_example):
+def CBS_RRS(epoch,logits,label,logits2,label2,ind,img_num_per_cls,loss_all,num_example=None):
     num_batch = logits.shape[0]
     loss_CBS = F.cross_entropy(logits, label)
     loss_RRS = F.cross_entropy(logits2, label2)
@@ -411,7 +457,7 @@ def CBS_RRS(epoch,logits,label,logits2,label2,ind,img_num_per_cls,loss_all,num_e
 
 
 
-def IB_Loss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example):
+def IB_Loss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example=None):
     num_classes = len(img_num_per_cls)
     num_batch = logits.shape[0]
     alpha = 1000.0
@@ -430,7 +476,7 @@ def IB_Loss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example
 
 
 
-def IB_FocalLoss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example):
+def IB_FocalLoss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_example=None):
     num_classes = len(img_num_per_cls)
     num_batch = logits.shape[0]
     alpha = 1000.0
@@ -452,7 +498,7 @@ def IB_FocalLoss(epoch,logits,label,features,ind,img_num_per_cls,loss_all,num_ex
 
 
 
-def vs_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example):
+def vs_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=None):
     num_classes = len(img_num_per_cls)
     num_batch = logits.shape[0]
     gamma = 0.2
