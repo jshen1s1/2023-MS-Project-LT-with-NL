@@ -3,6 +3,4 @@ data/*
 !results/__init__.py 
 __pycache__
 run_coteaching.py
-LT/
-NL/
 .vscode

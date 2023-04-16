@@ -46,6 +46,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [To Balance or Not to Balance: A Simple-yet-Effective Approach for Learning with Long-Tailed Distributions](https://arxiv.org/pdf/1912.04486.pdf) |  CVPR   | 2020 |             |            |
 | [Decoupling representation and classifier for long-tailed recognition](https://openreview.net/pdf?id=r1gRTCVFvB) |  ICLR   | 2020 | `Sampling`,`CSL`,`RL`,`CD`,`DT` | [Official](https://github.com/facebookresearch/classifier-balancing) |
 | [Deep representation learning on long-tailed data: A learnable embedding augmentation perspective](https://openaccess.thecvf.com/content_CVPR_2020/papers/Liu_Deep_Representation_Learning_on_Long-Tailed_Data_A_Learnable_Embedding_Augmentation_CVPR_2020_paper.pdf) |  CVPR   | 2020 |         `TL`,`Aug`,`RL`         |                           |
+| [Identifying and Compensating for Feature Deviation in Imbalanced Deep Learning](https://arxiv.org/pdf/2001.01385.pdf) |  NeurIPS   | 2020 |      `LA`      |      |
 | [Learning imbalanced datasets with label-distribution-aware margin loss](https://proceedings.neurips.cc/paper/2019/file/621461af90cadfdaf0e8d4cc25129f91-Paper.pdf) | NeurIPS | 2019 |   `CSL`    |        [Official](https://github.com/kaidic/LDAM-DRW)        |
 | [Focal loss for dense object detection](https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf) |  ICCV   | 2017 | `CSL` |      |
 
@@ -76,7 +77,7 @@ This framework is tested on Ubuntu 20.04.5. To duplicate the environment:
 ### Usage
 #### (0) Download the dataset:
 
-Download CIFAR through the <a href="https://www.cs.toronto.edu/~kriz/cifar.html" target="_blank">dataset companion site</a>, unzip it and locate it in a given directory.
+Download CIFAR through the <a href="https://www.cs.toronto.edu/~kriz/cifar.html" target="_blank">dataset companion site</a>, unzip it and locate it in 'data' directory.
 
 #### (1) Adjust parameters:
 
@@ -84,10 +85,9 @@ The goal is to define the parameters of the experiment. The most important param
    
 `noise_type`: type of noise 
 `lt_type`: type of long-tailed distribution
+`train_rule`: defines the training approaches
 `loss`: defines the loss function. To be decided among:
-`dual_t`: apply dual T estimator or not
-
-  - `cross_entropy`: cross entropy loss
+  - `CE`: cross entropy loss
   - `focal_loss`: 
   - `logits_adjustment`: 
   - `cores`: 
@@ -107,49 +107,101 @@ The rest of the parameters should be rather intuitive.
 * CE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * CB_CE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type CE --train_rule Reweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss CB_CE --train_rule Reweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* CB_Focal:
+  ```
+  cd ./LT 
+  Training: python main.py --dataset cifar100 --loss CB_Focal --train_rule Reweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type Focal --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss Focal --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * LADE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type LADE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss LADE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * LDAM:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type LDAM --train_rule DRW --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss LDAM --train_rule DRW --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* logits_adjustment:
+  ```
+  cd ./LT 
+  Training: python main.py --dataset cifar100 --loss logits_adjustment --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * IB:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type IB --train_rule IBReweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss IB --train_rule IBReweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * IB_Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type IBFocal --train_rule IBReweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss IBFocal --train_rule IBReweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
 * BKD:
   ```
   cd ./LT 
-  Stage 1: python main.py --dataset cifar100 --loss_type BKD --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-  Stage 2:
-
+  Stage 1: python main.py --dataset cifar100 --loss CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Stage 2: python main.py --dataset cifar100 --loss BKD --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0 --model_dir results/cifar100/CE
+  ```
 * VS:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss_type VS --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
-
+  Training: python main.py --dataset cifar100 --loss VS --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* WVN+RS:
+  ```
+  cd ./LT 
+  Training: python main.py --dataset cifar100 --loss CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0 --WVN_RS
+  ```
+* Co-teaching:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss coteaching --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* Co-teaching_plus:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* Dual_T estimator:
+  ```
+  cd ./NL 
+  Stage 1: python main.py --dataset cifar100 --loss CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 40 --num_classes 100 --gpu 0 --save_dir results/cifar100/CE/est_t
+  Stage 2: python main.py --dataset cifar100 --loss CLS --train_rule Dual_t --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0 --model_dir results/cifar100/CE/est_t
+  ```
+* Dual_T Co-teaching:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* ELR:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss ELR --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* CORES:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss cores --train_rule CORES --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+* CORES_logits_adjustment:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  ```
+  
 #### (3) See results:
 
 You can check the `results/*.txt`. Results are shown in a table.
