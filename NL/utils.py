@@ -93,7 +93,7 @@ def noisify_pairflip(y_train, noise, random_state=None, nb_classes=10):
                                            random_state=random_state)
         actual_noise = (y_train_noisy != y_train).mean()
         assert actual_noise > 0.0
-        print('Actual noise %.2f' % actual_noise)
+        #print('Actual noise %.2f' % actual_noise)
         y_train = y_train_noisy
     #print P
 
@@ -118,7 +118,7 @@ def noisify_multiclass_symmetric(y_train, noise, random_state=None, nb_classes=1
                                            random_state=random_state)
         actual_noise = (y_train_noisy != y_train).mean()
         assert actual_noise > 0.0
-        print('Actual noise %.2f' % actual_noise)
+        #print('Actual noise %.2f' % actual_noise)
         y_train = y_train_noisy
     #print P
 

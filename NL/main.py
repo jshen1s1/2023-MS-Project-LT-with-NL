@@ -28,7 +28,7 @@ from trainer import *
 np.random.seed(0)
 
 model_names = sorted(name for name in models.__dict__
-                     if name.islower() and not name.startswith("__")
+                     if not name.startswith("__")
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='Cross Entropy')
@@ -41,15 +41,14 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='ResNet34',
                          ' (default: ResNet34)')
 parser.add_argument('--batch_size', type=int, default=64, help='Number of images in each mini-batch')
 parser.add_argument('--lr', type = float, default=0.1)
-parser.add_argument('--lr_decay', type=int, default=50, help='learning rate decay')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('--epochs', type=int, default=150, help='Number of sweeps over the dataset to train')
+parser.add_argument('--epochs', type=int, default=200, help='Number of sweeps over the dataset to train')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes')
 parser.add_argument('--noise_rate', type = float, help = 'corruption rate, should be less than 1', default = 0.3)
 parser.add_argument('--noise_type', type = str, help='[pairflip, symmetric,instance]', default='symmetric')
 parser.add_argument('--num_gradual', type = int, default = 10,
-                    help='how many epochs for linear drop rate. This parameter is equal to Ek for lambda(E) in the paper.')
+                    help='how many epochs for linear drop rate. This parameter is equal to Ek for lambda(E) in the co-teaching_plus paper.')
 parser.add_argument('--dataset', type = str, help='[cifar10,cifar100]', default='cifar10')
 parser.add_argument('--lt_type', type = str, help='[None, exp, step]', default='exp')
 parser.add_argument('--lt_rate', type = float, help = 'corruption rate, should be less than 1', default = 0.02)
@@ -60,7 +59,7 @@ parser.add_argument('--random_state', type=int, default=0, help='random state')
 parser.add_argument('--WVN_RS', action='store_true', help = 'whether to use WVN and re-scale weight vector or not')
 parser.add_argument('--model_dir', type=str, default=None, help = 'teacher model path')
 parser.add_argument('--save_dir', type=str, default=None, help='save directory path')
-parser.add_argument('--train_rule', default='None', type=str, help='data sampling strategy for train loader')
+parser.add_argument('--train_rule', default='None', type=str, help='model training strategy')
 parser.add_argument('--gpu', default=0, type=int, help='GPU id to use.')
 
 args = parser.parse_args()
@@ -76,9 +75,11 @@ def main():
     if args.dataset == 'cifar10':
         args.scheduler_steps = [60,120]
         init_epoch = 20
+        warm_up = 10
     elif args.dataset == 'cifar100':
         args.scheduler_steps = [60,120]
         init_epoch = 5
+        warm_up = 30
 
     # Data loading code
     train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state)
@@ -95,6 +96,18 @@ def main():
                                   shuffle=False,
                                   pin_memory=True)
 
+    est_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=12,
+                                  shuffle=False,
+                                  pin_memory=True)
+    
+    warmup_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                  batch_size = args.batch_size*2, 
+                                  num_workers=12,
+                                  shuffle=True,
+                                  pin_memory=True)
+    
     img_num_per_cls = np.array(train_dataset.get_cls_num_list())
     args.cls_num_list = img_num_per_cls
     num_training_samples = sum(img_num_per_cls)
@@ -102,8 +115,9 @@ def main():
 
     # create model
     print("=> creating model '{}'".format(args.arch))
+    torch.cuda.set_device(args.gpu)
     model = models.__dict__[args.arch](num_classes=args.num_classes)
-    model.cuda()
+    model.to(args.gpu)
 
     optimizer = torch.optim.SGD(model.parameters(),
                                     args.lr,
@@ -112,6 +126,20 @@ def main():
                                     nesterov=True)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.scheduler_steps)
+
+    if args.loss in ['coteaching', 'coteaching_plus', 'Semi']:
+        model2 = models.__dict__[args.arch](num_classes=args.num_classes)
+        model2.to(args.gpu)
+        optimizer2 = torch.optim.SGD(model2.parameters(),
+                                args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay,
+                                nesterov=True)
+        lr_scheduler2 = torch.optim.lr_scheduler.MultiStepLR(optimizer2, milestones=args.scheduler_steps)
+    else:
+        model2 = None
+        optimizer2 = None
+        lr_scheduler2 = None
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -130,23 +158,19 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
-    # select train rule
+    # train rule selection 
     if args.train_rule == 'None':
         dual_T_estimation = np.eye(args.num_classes)
     elif args.train_rule == 'Dual_t':
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 100, gamma = 0.1)
 
-        est_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                    batch_size = args.batch_size, 
-                                    num_workers=12,
-                                    shuffle=False,pin_memory=True)
         true_t_matrix = train_loader.dataset.t_matrix
 
         model_warmup = models.__dict__[args.arch](num_classes=args.num_classes)
         model_warmup = load_network(model_warmup, args)
-        model_warmup.cuda()
+        model_warmup.to(args.gpu)
 
-        T_spadesuit, T_clubsuit = run_est_T_matrices(est_loader, model_warmup, args.num_classes)
+        T_spadesuit, T_clubsuit = run_est_T_matrices(est_loader, model_warmup, args)
         # the emprical noisy class posterior is equal to the intermediate class posterior, therefore T_estimation and T_clubsuit are identical
         T_estimation = T_clubsuit
         T_estimator_err = l1_error_calculator(target = true_t_matrix, target_hat = T_clubsuit)
@@ -159,7 +183,7 @@ def main():
         T_noise_rate = get_noise_rate(T_estimation)
         DT_noise_rate = get_noise_rate(dual_T_estimation)
 
-        dual_T_estimation = torch.Tensor(dual_T_estimation).cuda()
+        dual_T_estimation = torch.Tensor(dual_T_estimation).cuda(args.gpu)
     elif args.train_rule == 'CORES':
         noise_prior = img_num_per_cls/num_training_samples
         noise_prior_cur = noise_prior
@@ -171,14 +195,6 @@ def main():
 
     if 'coteaching' in args.loss:
         forget_rate = DT_noise_rate if args.train_rule == 'Dual_t' else args.noise_rate
-        model2 = models.__dict__[args.arch](num_classes=args.num_classes)
-        model2.cuda()
-        optimizer2 = torch.optim.SGD(model2.parameters(),
-                                args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay,
-                                nesterov=True)
-        lr_scheduler2 = torch.optim.lr_scheduler.MultiStepLR(optimizer2, milestones=args.scheduler_steps)
         rate_schedule = np.ones(args.epochs)*forget_rate 
         rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
 
@@ -200,6 +216,7 @@ def main():
 
     # training epoches
     for epoch in range(args.start_epoch, args.epochs):
+        print('=> current epoch',epoch)
         if args.loss == 'CE':
             criterion = cross_entropy
         elif args.loss == 'cores':
@@ -221,34 +238,83 @@ def main():
                 criterion = co_teaching
             else:
                 criterion = co_teaching_plus
+        elif args.loss == 'Semi':
+            if epoch < warm_up:
+                criterion = cross_entropy
+            else:
+                criterion = semi_loss
         else:
             warnings.warn('Loss type is not listed')
             return
         
-
+        # train models
         if 'coteach' in args.loss:
             train_acc, train_acc2 = run_coteaching(train_loader, criterion, epoch, args, model, optimizer, model2, optimizer2, rate_schedule)
-
-            acc1 = validate(test_loader, model, args, t_m=np.eye(args.num_classes))
-            acc2 = validate(test_loader, model2, args, t_m=np.eye(args.num_classes))
         elif 'cores' in args.loss:
             train_acc, noise_prior_delta = run_cores(train_loader, criterion, model, optimizer, epoch, args, loss_all, loss_div_all, noise_prior_cur)
             train_acc2 = 0
-            acc1 = validate(test_loader, model, args, t_m=np.eye(args.num_classes))
-            acc2 = 0
 
+            # update noise prior
             noise_prior_cur = noise_prior*num_training_samples - noise_prior_delta
             noise_prior_cur = noise_prior_cur/sum(noise_prior_cur)
             noise_prior_all[:,epoch] = noise_prior_cur
+        elif args.loss == 'Semi' and epoch >= warm_up:
+            prob1 = eval_train(args,model,est_loader)   
+            prob2 = eval_train(args,model2,est_loader)
+
+            pred1 = (prob1 > 0.5)      
+            pred2 = (prob2 > 0.5)              
+
+            # co-divide
+            print('Train Net1')
+            labeled_dataset, unlabeled_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state,split=True,pred=pred2,prob=prob2) 
+            labeled_trainloader = torch.utils.data.DataLoader(dataset=labeled_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=5,
+                                  shuffle=True,
+                                  pin_memory=True)
+            unlabeled_trainloader = torch.utils.data.DataLoader(dataset=unlabeled_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=5,
+                                  shuffle=True,
+                                  pin_memory=True)
+            train_acc = run_divideMix(epoch,args,model,model2,optimizer,criterion,labeled_trainloader,unlabeled_trainloader,loss_all)
+            # co-divide
+            print('\nTrain Net2')
+            labeled_dataset, unlabeled_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state,split=True,pred=pred1,prob=prob1)
+            labeled_trainloader = torch.utils.data.DataLoader(dataset=labeled_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=5,
+                                  shuffle=True,
+                                  pin_memory=True)
+            unlabeled_trainloader = torch.utils.data.DataLoader(dataset=unlabeled_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=5,
+                                  shuffle=True,
+                                  pin_memory=True)
+            train_acc2 = run_divideMix(epoch,args,model2,model,optimizer2,criterion,labeled_trainloader,unlabeled_trainloader,loss_all)
         else:
-            train_acc = train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=dual_T_estimation)
-            train_acc2 = 0
-            acc1 = validate(test_loader, model, args, t_m=np.eye(args.num_classes))
-            acc2 = 0
+            loader = warmup_loader if args.loss == 'Semi' else train_loader
+            train_acc = train(loader, criterion, model, optimizer, epoch, args, loss_all, t_m=dual_T_estimation)
+            if model2:
+                train_acc2 = train(loader, criterion, model2, optimizer2, epoch, args, loss_all, t_m=dual_T_estimation)
+            else:
+                train_acc2 = 0
 
         lr_scheduler.step()
-        if 'coteaching' in args.loss:
+        if lr_scheduler2:
             lr_scheduler2.step()
+
+        # evaluate 
+        if args.loss == 'Semi':
+            acc1 = test(test_loader, model, model2, args, t_m=np.eye(args.num_classes))
+            acc2 = 0
+        else:
+            acc1 = validate(test_loader, model, args, t_m=np.eye(args.num_classes))
+            if model2:
+                acc2 = validate(test_loader, model2, args, t_m=np.eye(args.num_classes))
+            else:
+                acc2 = 0
 
         # remember best acc@1 and save checkpoint
         is_best = max(acc1,acc2)>best_acc1
@@ -270,16 +336,15 @@ def main():
                 'best_acc1': best_acc1,
                 'optimizer': optimizer2.state_dict(),
             }, is_best)
-        print('train acc',train_acc)
+        print('\ntrain acc', train_acc, 'train acc2', train_acc2)
         print('best acc', best_acc1)
         print('last acc', max(acc1,acc2))
 
         with open(txtfile, "a") as myfile:
-            myfile.write(str(int(epoch)) + ': '  + str(100.*train_acc) +' ' + str(max(acc1,acc2)) + ' ' + str(best_acc1) + "\n")
+            myfile.write(str(int(epoch)) + ': '  + str(train_acc) +' ' + str(max(acc1,acc2)) + ' ' + str(best_acc1) + "\n")
 
 
 def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=np.eye(100)):
-    print('current epoch',epoch)
     # switch to train mode
     model.train()    
     train_loader.dataset.train_mode()
@@ -287,35 +352,42 @@ def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=
     img_num_per_cls = args.cls_num_list
     correct = 0
     total = 0
+    num_iter = (len(train_loader.dataset)//train_loader.batch_size)+1
     for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
         ind=indexes.cpu().numpy().transpose()
-        images = Variable(images).cuda()
-        labels = Variable(labels).cuda()
-        output, _ = model(images)
+        images = Variable(images).cuda(args.gpu)
+        labels = Variable(labels).cuda(args.gpu)
+        outputs, _ = model(images)
         if args.train_rule == 'Dual_t':
             probs = F.softmax(output, dim=1)
             probs = torch.matmul(probs, t_m)
             output = torch.log(probs+1e-12)
-        loss = criterion(epoch,output,labels,ind,img_num_per_cls,loss_all)
+        loss = criterion(epoch,outputs,labels,ind,img_num_per_cls,loss_all)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        _, predicted = output.max(1)
+        _, pred = torch.max(outputs.data, 1)
         total += labels.size(0)
-        correct += predicted.eq(labels).sum().item()    
+        correct += pred.eq(labels).sum().item()     
 
+        sys.stdout.write('\r')
+        sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+        sys.stdout.flush()       
+
+    acc = 100.*float(correct)/float(total) 
     np.save(args.save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.train_rule == 'Dual_t' else '') + ('WVN_RS' if args.WVN_RS else '') +'_loss_all.npy',loss_all)
-    return 100.*correct/total
+    return acc
 
 
 def validate(val_loader, model, args, t_m=np.eye(100)):
     model.eval()
     correct = 0
     total = 0
-    t_m = torch.Tensor(t_m).cuda()
+    t_m = torch.Tensor(t_m).cuda(args.gpu)
     with torch.no_grad():
         for i, (images, labels) in enumerate(val_loader):
-            images = Variable(images).cuda()
+            images = Variable(images).cuda(args.gpu)
             # compute output
             logits, _ = model(images)
             outputs = F.softmax(logits, dim=1)
@@ -326,9 +398,34 @@ def validate(val_loader, model, args, t_m=np.eye(100)):
             _, pred = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (pred.cpu() == labels).sum()
-            acc = 100*float(correct)/float(total) 
+    acc = 100*float(correct)/float(total) 
     return acc
 
+
+def test(val_loader, model, model2, args, t_m=np.eye(100)):
+    model.eval()
+    model2.eval()
+    correct = 0
+    total = 0
+    t_m = torch.Tensor(t_m).cuda(args.gpu)
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(val_loader):
+            images = Variable(images).cuda(args.gpu)
+            labels = Variable(labels).cuda(args.gpu)
+            # compute output
+            outputs1, _ = model(images)
+            outputs2, _ = model2(images)
+            outputs = outputs1+outputs2
+            if args.train_rule == 'Dual_t':
+                probs = F.softmax(outputs, dim=1)
+                probs = torch.matmul(probs, t_m)
+                outputs = torch.log(probs+1e-12)
+            _, pred = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += pred.eq(labels).cpu().sum().item()   
+    acc = 100*float(correct)/float(total) 
+    return acc
+    
 
 def load_network(network, args):
     if args.dataset == 'cifar10':

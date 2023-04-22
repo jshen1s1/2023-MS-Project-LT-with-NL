@@ -40,15 +40,16 @@ def est_t_matrix(eta_corr, filter_outlier=False):
 def get_noise_rate(t):
     return 1-np.average(t.diagonal())
 
-def get_transition_matrices(est_loader, model, num_classes):
+def get_transition_matrices(est_loader, model, args):
     model.eval()
     est_loader.dataset.eval()
+    num_classes = args.num_classes
     p = []
     T_spadesuit = np.zeros((num_classes,num_classes))
     with torch.no_grad():
         for i, (images, labels, _, _) in enumerate(est_loader):
-            images = Variable(images).cuda()
-            labels = Variable(labels).cuda()
+            images = Variable(images).cuda(args.gpu)
+            labels = Variable(labels).cuda(args.gpu)
             pred, _ = model(images)
             probs = F.softmax(pred, dim=1).cpu().data.numpy()
             _, pred = pred.topk(1, 1, True, True)           
@@ -65,8 +66,8 @@ def get_transition_matrices(est_loader, model, num_classes):
     T_spadesuit = np.nan_to_num(T_spadesuit)
     return T_spadesuit, T_clubsuit
 
-def run_est_T_matrices(est_loader, model, num_classes):
-    T_spadesuit, T_clubsuit = get_transition_matrices(est_loader, model, num_classes)
+def run_est_T_matrices(est_loader, model, args):
+    T_spadesuit, T_clubsuit = get_transition_matrices(est_loader, model, args)
     return T_spadesuit, T_clubsuit
 
 

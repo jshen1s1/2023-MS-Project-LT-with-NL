@@ -27,7 +27,7 @@ from utils import *
 np.random.seed(0)
 
 model_names = sorted(name for name in models.__dict__
-                     if name.islower() and not name.startswith("__")
+                     if not name.startswith("__")
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='Cross Entropy')
@@ -40,10 +40,9 @@ parser.add_argument('-a', '--arch', metavar='ARCH', default='ResNet34',
                          ' (default: ResNet34)')
 parser.add_argument('--batch_size', type=int, default=64, help='Number of images in each mini-batch')
 parser.add_argument('--lr', type = float, default=0.1)
-parser.add_argument('--lr_decay', type=int, default=50, help='learning rate decay')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('--epochs', type=int, default=150, help='Number of sweeps over the dataset to train')
+parser.add_argument('--epochs', type=int, default=200, help='Number of sweeps over the dataset to train')
 parser.add_argument('--num_classes', type=int, default=10, help='Number of classes')
 parser.add_argument('--noise_rate', type = float, help = 'corruption rate, should be less than 1', default = 0.3)
 parser.add_argument('--noise_type', type = str, help='[pairflip, symmetric,instance]', default='symmetric')
@@ -82,13 +81,15 @@ def main_worker(gpu, ngpus_per_node, args):
     elif args.dataset == 'cifar100':
         args.scheduler_steps = [60,120]
     use_norm = True if args.loss == 'LDAM' else False
+    torch.cuda.set_device(args.gpu)
     model = models.__dict__[args.arch](num_classes=args.num_classes, use_norm=use_norm, WVN=args.WVN_RS)
-    model.cuda()
-    model2 = None
+    model.to(args.gpu)
     if 'KD' in args.loss:
         model2 = models.__dict__[args.arch](num_classes=args.num_classes, use_norm=use_norm, WVN=args.WVN_RS)
         model2 = load_network(model2, args)
-        model2.cuda()
+        model2.to(args.gpu)
+    else:
+        model2 = None
 
     optimizer = torch.optim.SGD(model.parameters(),
                                 args.lr,
@@ -157,6 +158,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # training epoches
     for epoch in range(args.start_epoch, args.epochs):
+        print('=> current epoch',epoch)
         if args.train_rule == 'None':
             train_sampler = None
             per_cls_weights = None
@@ -240,28 +242,28 @@ def main_worker(gpu, ngpus_per_node, args):
             'best_acc1': best_acc1,
             'optimizer': optimizer.state_dict(),
         }, is_best)
-        print('train acc',train_acc)
+        print('\ntrain acc',train_acc)
         print('best acc',best_acc1)
         print('last acc', acc1)
 
         with open(txtfile, "a") as myfile:
-            myfile.write(str(int(epoch)) + ': '  + str(100.*train_acc) +' ' + str(acc1) + ' ' + str(best_acc1) + "\n")
+            myfile.write(str(int(epoch)) + ': '  + str(train_acc) +' ' + str(acc1) + ' ' + str(best_acc1) + "\n")
 
 
 
 def train(train_loader, model, criterion, per_cls_weights, optimizer, lr_scheduler, epoch, args, loss_all, model2=None):
-    print('current epoch',epoch)
     # switch to train mode
     model.train()
 
     img_num_per_cls = args.cls_num_list
     correct = 0
     total = 0
+    num_iter = (len(train_loader.dataset)//train_loader.batch_size)+1
     for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
         ind=indexes.cpu().numpy().transpose()
         batch_num = len(indexes)
-        images = Variable(images).cuda()
-        labels = Variable(labels).cuda()
+        images = Variable(images).cuda(args.gpu)
+        labels = Variable(labels).cuda(args.gpu)
         output, features = model(images)
 
         if 'KD' in args.loss:
@@ -280,10 +282,17 @@ def train(train_loader, model, criterion, per_cls_weights, optimizer, lr_schedul
         _, predicted = output.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()     
+
+        sys.stdout.write('\r')
+        sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+        sys.stdout.flush()       
+
     lr_scheduler.step()
 
+    acc = 100.*float(correct)/float(total) 
     np.save(args.save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate)  + ('WVN_RS' if args.WVN_RS else '') +'_loss_all.npy',loss_all)
-    return correct/total
+    return acc
 
 
 
@@ -300,7 +309,7 @@ def validate(val_loader, model, criterion, epoch, args):
         idx = 0 if args.dataset == 'cifar10' else 1
         ns = [ float(n) / max(num_sample) for n in num_sample ]
         ns = [ n**gama[idx] for n in ns ]
-        ns = torch.FloatTensor(ns).unsqueeze(-1).cuda()
+        ns = torch.FloatTensor(ns).unsqueeze(-1).cuda(args.gpu)
         new_W = W / ns
 
         current_state['linear.weight'] = new_W
@@ -311,14 +320,14 @@ def validate(val_loader, model, criterion, epoch, args):
     total = 0
     with torch.no_grad():
         for i, (images, labels) in enumerate(val_loader):
-            images = Variable(images).cuda()
+            images = Variable(images).cuda(args.gpu)
             # compute output
             logits, features = model(images)
             outputs = F.softmax(logits, dim=1)
             _, pred = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (pred.cpu() == labels).sum()
-            acc = 100*float(correct)/float(total) 
+    acc = 100*float(correct)/float(total) 
     return acc
 
 

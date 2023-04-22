@@ -16,6 +16,20 @@ The framework comprises all the basic stages: feature extraction, training, infe
 
 ## 2. Top-tier Conference Papers
 
+### Long-Tailed Learning with Noisy Labels
+
+| Title                                                        |  Venue  | Year |       Type       |                             Code                             |
+| :----------------------------------------------------------- | :-----: | :--: | :--------------: | :----------------------------------------------------------: |
+| [Fairness Improves Learning from Noisily Labeled Long-Tailed Data](https://arxiv.org/pdf/2303.12291.pdf) |  ArXiv   | 2023 |        |                   |
+| [Meta-learning advisor networks for long-tail and noisy labels in social image classification](https://dl.acm.org/doi/pdf/10.1145/3584360) |  ACM   | 2023 |        |                   |
+| [Identifying Hard Noise in Long-Tailed Sample Distribution](https://arxiv.org/pdf/2207.13378.pdf) |  ECCV   | 2022 |        |         [Official](https://github.com/yxymessi/H2E-Framework)          |
+| [Combating Noisy Labels in Long-Tailed Image Classification](https://arxiv.org/pdf/2209.00273.pdf) |  ICLR   | 2022 |         |                                                              |
+| [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |         |            |
+| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |         |                                                              |
+| [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 |  |    [Official](https://github.com/Stomach-ache/PCL)     |
+| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |             |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
+| [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |                 |
+
 ### Noisy labels
 
 | Title                                                        |  Venue  | Year |       Type       |                             Code                             |
@@ -50,17 +64,6 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Learning imbalanced datasets with label-distribution-aware margin loss](https://proceedings.neurips.cc/paper/2019/file/621461af90cadfdaf0e8d4cc25129f91-Paper.pdf) | NeurIPS | 2019 |   `CSL`    |        [Official](https://github.com/kaidic/LDAM-DRW)        |
 | [Focal loss for dense object detection](https://openaccess.thecvf.com/content_ICCV_2017/papers/Lin_Focal_Loss_for_ICCV_2017_paper.pdf) |  ICCV   | 2017 | `CSL` |      |
 
-### Long-Tailed Learning with Noisy Labels
-
-| Title                                                        |  Venue  | Year |       Type       |                             Code                             |
-| :----------------------------------------------------------- | :-----: | :--: | :--------------: | :----------------------------------------------------------: |
-| [Identifying Hard Noise in Long-Tailed Sample Distribution](https://arxiv.org/pdf/2207.13378.pdf) |  ECCV   | 2022 |        |         [Official](https://github.com/yxymessi/H2E-Framework)          |
-| [Combating Noisy Labels in Long-Tailed Image Classification](https://arxiv.org/pdf/2209.00273.pdf) |  ICLR   | 2022 |         |                                                              |
-| [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |         |            |
-| [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) | ArXiv | 2021 |  |    [Official](https://github.com/Stomach-ache/PCL)     |
-| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv   | 2021 |             |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
-| [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv    | 2021 |   |                 |
-
 ### Benchmark Datasets
 
 | Title                                                        |  Venue  | Year |       Type       |                             Code                             |
@@ -69,10 +72,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
 
 ## 3. Our codebase
 ### Dependencies
-This framework is tested on Ubuntu 20.04.5. To duplicate the environment:
-
-`Under construction`
-<!---`conda create --name <envname> --file requirements.txt`--->
+This framework is tested on Ubuntu 20.04.5.
 
 ### Usage
 #### (0) Download the dataset:
@@ -81,73 +81,85 @@ Download CIFAR through the <a href="https://www.cs.toronto.edu/~kriz/cifar.html"
 
 #### (1) Adjust parameters:
 
-The goal is to define the parameters of the experiment. The most important parameters are: 
-   
-`noise_type`: type of noise 
-`lt_type`: type of long-tailed distribution
-`train_rule`: defines the training approaches
-`loss`: defines the loss function. To be decided among:
-  - `CE`: cross entropy loss
-  - `focal_loss`: 
-  - `logits_adjustment`: 
-  - `cores`: 
-  - `gce`: 
-  - `cb_ce`: 
-  - `cb_focal`: 
-  - `cores_no_select`: 
-  - `cores_logits_adjustment`: 
-  - `erl`:
-  - `coteaching`: 
-  - `coteaching_plus`: 
-  - `cls`: 
+The goal is to define the parameters of the experiment. The default parameters and explanations are: 
 
-The rest of the parameters should be rather intuitive.
+```
+usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] [--num_classes]
+                [--noise_rate] [--noise_type] [--num_gradual]  [--dataset] [--lt_type] [--lt_rate]
+                [--momentum] [--weight-decay] [--loss] [--random_state] [--WVN_RS] [--model_dir] [--save_dir]
+                [--train_rule] [--gpu]
 
-#### (2) Execute the code by:
+  options:
+    --resume                      path to latest checkpoint (default: None)
+    --arch, -a                    model architecture (default: ResNet34)
+    --bs                          batch size (default: 64)
+    --lr                          learning rate (default: 0.1)
+    --start-epoch                 initial epoch (default: 0)
+    --epochs                      total epoches (default: 200)
+    --num_classes                 num of classes (default: 10)
+    --noise_rate                  noise level (default: 0.3 for 30%)
+    --noise_type                  noise type (default: symmetric)
+    --num_gradual                 only for co-teaching approaches, how many epochs for linear drop rate (default: 10)
+    --dataset                     dataset (default: cifar10)
+    --lt_type                     long-tailed type (default: exp)
+    --lt_rate                     long-tailed ratio (default: 0.02 for factor = 50)
+    --momentum                    momentum (default: 0.9)
+    --weight-decay                weight decay (default: 1e-4)
+    --loss                        loss (default: CE)
+    --random_state                random state (default: 0)
+    --WVN_RS                      WVN+RS is used when parameter called
+    --model_dir                   only for approaches with teacher model (default: None)
+    --save_dir                    save directory path (default: None)
+    --train_rule                  model training strategy (default: None)
+    --gpu                         GPU id to use (default: 0)     
+
+```
+
+#### (2) Example execution code for cifar100:
 * CE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss CE --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * CB_CE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CB_CE --train_rule Reweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss CB_CE --train_rule Reweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * CB_Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CB_Focal --train_rule Reweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss CB_Focal --train_rule Reweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss Focal --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss Focal --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * LADE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss LADE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss LADE --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * LDAM:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss LDAM --train_rule DRW --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss LDAM --train_rule DRW --epochs 200 --num_classes 100 --gpu 0
   ```
 * logits_adjustment:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss logits_adjustment --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss logits_adjustment --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * IB:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss IB --train_rule IBReweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss IB --train_rule IBReweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * IB_Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss IBFocal --train_rule IBReweight --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss IBFocal --train_rule IBReweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * BKD:
   ```
@@ -158,22 +170,22 @@ The rest of the parameters should be rather intuitive.
 * VS:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss VS --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss VS --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * WVN+RS:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CE --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0 --WVN_RS
+  Training: python main.py --dataset cifar100 --loss CE --train_rule None --epochs 200 --num_classes 100 --gpu 0 --WVN_RS
   ```
 * Co-teaching:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss coteaching --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss coteaching --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * Co-teaching_plus:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * Dual_T estimator:
   ```
@@ -184,30 +196,39 @@ The rest of the parameters should be rather intuitive.
 * Dual_T Co-teaching:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --epochs 200 --num_classes 100 --gpu 0
   ```
 * ELR:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss ELR --train_rule None --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss ELR --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * CORES:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss cores --train_rule CORES --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss cores --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
   ```
 * CORES_logits_adjustment:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --lt_type exp --lt_rate 0.02 --noise_rate 0.3 --noise_type symmetric --epochs 200 --num_classes 100 --gpu 0
+  Training: python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
+  ```
+* DivideMix:
+  ```
+  cd ./NL 
+  Training: python main.py --dataset cifar100 --loss Semi --train_rule None --epochs 300 --num_classes 100 --gpu 0 --arch ResNet18
   ```
   
 #### (3) See results:
 
 You can check the `results/*.txt`. Results are shown in a table.
+You can load `results/*.best.pth` to resume the trained model.
 
 ## 4. Survey References：
- 
+
+- [Vanint/Awesome-LongTailed-Learning] (https://github.com/Vanint/Awesome-LongTailed-Learning)
+- [weijiaheng/Advances-in-Label-Noise-Learning] (https://github.com/weijiaheng/Advances-in-Label-Noise-Learning)
+
 ## 5. Contact
 
 You are welcome to contact me privately should you have any question/suggestion or if you have any problems running the code at jshen30@ucsc.edu.

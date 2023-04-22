@@ -34,8 +34,66 @@ def transform_target(label):
     target = torch.from_numpy(label).long()
     return target  
 
-def input_dataset(dataset, noise_type, noise_ratio,lt_type,lt_ratio,random_state):
-    if dataset == 'cifar10':
+def input_dataset(dataset, noise_type, noise_ratio,lt_type,lt_ratio,random_state,split=False,pred=[],prob=[]):
+    if dataset == 'cifar10' and split:
+        labeled_dataset  = CIFAR10_bias(root='./data/',
+                                download=False,  
+                                train=True, 
+                                transform = train_cifar10_transform,
+                                transform_eval = test_cifar10_transform,
+                                noise_type=noise_type,
+                                noise_rate=noise_ratio,
+                                lt_type = lt_type,
+                                lt_ratio = lt_ratio,
+                                random_state=random_state,
+                                mode = 'labeled',
+                                pred=pred, 
+                                probability=prob
+                           )
+        unlabeled_dataset  = CIFAR10_bias(root='./data/',
+                                download=False,  
+                                train=True, 
+                                transform = train_cifar10_transform,
+                                transform_eval = test_cifar10_transform,
+                                noise_type=noise_type,
+                                noise_rate=noise_ratio,
+                                lt_type = lt_type,
+                                lt_ratio = lt_ratio,
+                                random_state=random_state,
+                                mode = 'unlabeled',
+                                pred=pred
+                           )
+        return labeled_dataset, unlabeled_dataset
+    elif dataset == 'cifar100' and split:
+        labeled_dataset  = CIFAR100_bias(root='./data/',
+                                download=False,  
+                                train=True, 
+                                transform = train_cifar100_transform,
+                                transform_eval = test_cifar100_transform,
+                                noise_type=noise_type,
+                                noise_rate=noise_ratio,
+                                lt_type = lt_type,
+                                lt_ratio = lt_ratio,
+                                random_state=random_state,
+                                mode = 'labeled',
+                                pred=pred, 
+                                probability=prob
+                           )
+        unlabeled_dataset  = CIFAR100_bias(root='./data/',
+                                download=False,  
+                                train=True, 
+                                transform = train_cifar100_transform,
+                                transform_eval = test_cifar100_transform,
+                                noise_type=noise_type,
+                                noise_rate=noise_ratio,
+                                lt_type = lt_type,
+                                lt_ratio = lt_ratio,
+                                random_state=random_state,
+                                mode = 'unlabeled',
+                                pred=pred
+                           )
+        return labeled_dataset, unlabeled_dataset
+    elif dataset == 'cifar10':
         train_dataset = CIFAR10_bias(root='./data/',
                                 download=False,  
                                 train=True, 

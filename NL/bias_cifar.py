@@ -49,7 +49,8 @@ class CIFAR10_bias(data.Dataset):
     def __init__(self, root, train=True,
                  transform=None, transform_eval = None, target_transform=None, 
                  download=False,lt_type=None, lt_ratio=0.01,
-                 noise_type=None, noise_rate=0.2, random_state=0):
+                 noise_type=None, noise_rate=0.2, random_state=0, 
+                 mode='all', pred=[], probability=[]):
         self.root = os.path.expanduser(root)
         self.transform = transform
         self.transform_eval = transform_eval
@@ -63,6 +64,7 @@ class CIFAR10_bias(data.Dataset):
         self.random_state = random_state
         self.apply_transform_eval = False
         self.t_matrix = None
+        self.mode = mode
 
         self.nb_classes=10
         self.img_num_per_cls = [5000]*10
@@ -99,6 +101,16 @@ class CIFAR10_bias(data.Dataset):
             else:
                 pass
 
+            if self.mode != 'all':
+                if self.mode == 'labeled':
+                    pred_idx = pred.nonzero()[0]
+                    self.probability = [probability[i] for i in pred_idx]
+                elif self.mode == "unlabeled":
+                    pred_idx = (1-pred).nonzero()[0]
+                
+                self.train_data = self.train_data[pred_idx]
+                self.train_labels = [self.train_labels[i] for i in pred_idx]  
+                print("%s data has a size of %d"%(self.mode,len(self.train_labels)))  
         else:
             f = self.test_list[0][0]
             file = os.path.join(self.root, self.base_folder, f)
@@ -134,10 +146,10 @@ class CIFAR10_bias(data.Dataset):
             train_labels = [i[0] for i in train_labels]
             self.train_labels = train_labels
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
-            print('actual noise rate is',actual_noise_rate)
+            #print('actual noise rate is',actual_noise_rate)
         if noise_type=='instance':
             train_labels, actual_noise_rate, self.t_matrix = noisify_instance(train_data, train_labels,noise_rate=noise_rate, random_state=random_state)
-            print('actual noise rate is',actual_noise_rate)
+            #print('actual noise rate is',actual_noise_rate)
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
             self.train_labels = train_labels
         if noise_type=='human_noise':
@@ -182,7 +194,14 @@ class CIFAR10_bias(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
         true_target = self.true_labels[index]
-        return img, target, true_target, index
+                
+        if self.mode == 'labeled':
+            prob = self.probability[index]
+            return img, img, target, prob, index
+        elif self.mode=='unlabeled':
+            return img, img
+        else:
+            return img, target, true_target, index
 
     def eval(self):
         self.apply_transform_eval = True
@@ -229,7 +248,8 @@ class CIFAR100_bias(data.Dataset):
     def __init__(self, root, train=True,
                  transform=None, transform_eval = None, target_transform=None,
                  download=False,lt_type=None, lt_ratio=0.01,
-                 noise_type=None, noise_rate=0.2, random_state=0):
+                 noise_type=None, noise_rate=0.2, random_state=0,
+                 mode='all', pred=[], probability=[]):
         self.root = os.path.expanduser(root)
         self.transform = transform
         self.transform_eval = transform_eval
@@ -243,6 +263,7 @@ class CIFAR100_bias(data.Dataset):
         self.random_state = random_state
         self.apply_transform_eval = False
         self.t_matrix = None
+        self.mode = mode
 
         self.nb_classes=100
         self.img_num_per_cls = [500]*100
@@ -279,6 +300,16 @@ class CIFAR100_bias(data.Dataset):
             else:
                 pass
 
+            if self.mode != 'all':
+                if self.mode == 'labeled':
+                    pred_idx = pred.nonzero()[0]
+                    self.probability = [probability[i] for i in pred_idx]
+                elif self.mode == "unlabeled":
+                    pred_idx = (1-pred).nonzero()[0]
+                
+                self.train_data = self.train_data[pred_idx]
+                self.train_labels = [self.train_labels[i] for i in pred_idx]  
+                print("%s data has a size of %d"%(self.mode,len(self.train_labels))) 
         else:
             f = self.test_list[0][0]
             file = os.path.join(self.root, self.base_folder, f)
@@ -313,10 +344,10 @@ class CIFAR100_bias(data.Dataset):
             train_labels = [i[0] for i in train_labels]
             self.train_labels = train_labels
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
-            print('actual noise rate is',actual_noise_rate)
+            #print('actual noise rate is',actual_noise_rate)
         if noise_type=='instance':
             train_labels, actual_noise_rate = noisify_instance(train_data, train_labels,noise_rate=noise_rate, random_state=random_state)
-            print('actual noise rate is',actual_noise_rate)
+            #print('actual noise rate is',actual_noise_rate)
             self.noise_or_not = np.transpose(self.train_labels)!=np.transpose(self.true_labels)
             self.train_labels = train_labels
         if noise_type=='human_noise':
@@ -361,7 +392,14 @@ class CIFAR100_bias(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
         true_target = self.true_labels[index]
-        return img, target, true_target, index
+
+        if self.mode == 'labeled':
+            prob = self.probability[index]
+            return img, img, target, prob, index
+        elif self.mode=='unlabeled':
+            return img, img
+        else:
+            return img, target, true_target, index
 
     def eval(self):
         self.apply_transform_eval = True

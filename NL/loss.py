@@ -24,15 +24,15 @@ def f_beta(epoch):
 
 def cross_entropy(epoch,logits,label,ind,img_num_per_cls,loss_all):
     num_batch = logits.shape[0]
-    loss = F.cross_entropy(logits, label, reduce = False)
+    loss = F.cross_entropy(logits, label, reduction='none')
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
-    return torch.sum(loss)/num_batch
+    return loss
 
 def NLLL(epoch,logits,label,ind,img_num_per_cls,loss_all):
     num_batch = logits.shape[0]
-    loss = F.nll_loss(logits, label, reduce = False)
+    loss = F.nll_loss(logits, label, reduction='none')
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
@@ -56,7 +56,7 @@ def cores_no_select(epoch,logits,label,ind,img_num_per_cls,noise_prior,loss_all,
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = f_beta(epoch)
-    loss = F.cross_entropy(logits, label, reduce = False)
+    loss = F.cross_entropy(logits, label, reduction='none')
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
@@ -80,7 +80,7 @@ def cores(epoch,logits,label,ind,img_num_per_cls,noise_prior,loss_all,loss_div_a
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = f_beta(epoch)
-    loss = F.cross_entropy(logits, label, reduce = False)
+    loss = F.cross_entropy(logits, label, reduction='none')
     loss_numpy = loss.data.cpu().numpy()
     loss_v = np.zeros(num_batch)
     loss_div_numpy = float(np.array(0))
@@ -116,7 +116,7 @@ def cores_logits_adjustment(epoch,logits,label,ind,img_num_per_cls,noise_prior,l
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
     beta = f_beta(epoch)
-    loss = F.cross_entropy(logits, label, reduce = False)
+    loss = F.cross_entropy(logits, label, reduction='none')
     loss_numpy = loss.data.cpu().numpy()
     loss_v = np.zeros(num_batch)
     loss_div_numpy = float(np.array(0))
@@ -143,7 +143,7 @@ def cores_logits_adjustment(epoch,logits,label,ind,img_num_per_cls,noise_prior,l
         logits = logits + torch.FloatTensor(adjustment).cuda()
     else:
         pass
-    loss_adjust = F.cross_entropy(logits, label, reduce = False)
+    loss_adjust = F.cross_entropy(logits, label, reduction='none')
     loss_ = -torch.log(F.softmax(logits) + 1e-8)
     if noise_prior is None:
         loss_adjust =  loss_adjust - beta*torch.mean(loss_,1)
@@ -159,11 +159,11 @@ def cores_logits_adjustment(epoch,logits,label,ind,img_num_per_cls,noise_prior,l
 
 
 def co_teaching(epoch, logits, logits2, label, forget_rate, ind, step):
-    loss_1 = F.cross_entropy(logits, label, reduce = False)
+    loss_1 = F.cross_entropy(logits, label, reduction='none')
     ind_1_sorted = np.argsort(loss_1.cpu().data).cuda()
     loss_1_sorted = loss_1[ind_1_sorted]
 
-    loss_2 = F.cross_entropy(logits2, label, reduce = False)
+    loss_2 = F.cross_entropy(logits2, label, reduction='none')
     ind_2_sorted = np.argsort(loss_2.cpu().data).cuda()
     loss_2_sorted = loss_2[ind_2_sorted]
 
@@ -255,8 +255,12 @@ def elr(epoch,logits,label,ind,img_num_per_cls,loss_all):
 
 
 
-def semi_loss(epoch, logits, logits_x, logits_u, label_x, label_u, ind, img_num_per_cls, warm_up):
+def semi_loss(epoch, logits_x, label_x, logits_u, label_u, img_num_per_cls):
     num_classes = len(img_num_per_cls)
+    if num_classes == 10:
+        warm_up = 10
+    else:
+        warm_up = 30
     probs_u = torch.softmax(logits_u, dim=1)
     Lx = -torch.mean(torch.sum(F.log_softmax(logits_x, dim=1) * label_x, dim=1))
     Lu = torch.mean((probs_u - label_u)**2)
@@ -266,13 +270,7 @@ def semi_loss(epoch, logits, logits_x, logits_u, label_x, label_u, ind, img_num_
     lambda_u = 25
     lamb = lambda_u * float(current)
 
-    prior = torch.ones(num_classes)/num_classes
-    prior = prior.cuda()        
-    pred_mean = torch.softmax(logits, dim=1).mean(0)
-    penalty = torch.sum(prior*torch.log(prior/pred_mean))
-
-    loss = Lx + lamb * Lu  + penalty
-    return loss
+    return Lx, Lu, lamb
 
 '''
 def DMI_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):

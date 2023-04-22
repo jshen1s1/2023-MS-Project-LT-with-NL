@@ -18,6 +18,9 @@ def _weights_init(m):
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
         init.kaiming_normal_(m.weight)
 
+def conv3x3(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+
 class NormedLinear(nn.Module):
 
     def __init__(self, in_features, out_features):
@@ -83,6 +86,32 @@ class Bottleneck(nn.Module):
         return out
 
 
+class PreActBlock(nn.Module):
+    '''Pre-activation version of the BasicBlock.'''
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1):
+        super(PreActBlock, self).__init__()
+        self.bn1 = nn.BatchNorm2d(in_planes)
+        self.conv1 = conv3x3(in_planes, planes, stride)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv2 = conv3x3(planes, planes)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion*planes:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
+            )
+
+    def forward(self, x):
+        out = F.relu(self.bn1(x))
+        shortcut = self.shortcut(out)
+        out = self.conv1(out)
+        out = self.conv2(F.relu(self.bn2(out)))
+        out += shortcut
+        return out
+    
+
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=10, use_norm=False, WVN=False):
         super(ResNet, self).__init__()
@@ -137,8 +166,8 @@ class ResNet(nn.Module):
         return out, torch.sum(torch.abs(out1), 1).reshape(-1, 1)
 
 
-def ResNet18(num_classes):
-    return ResNet(BasicBlock, [2,2,2,2],num_classes=num_classes)
+def ResNet18(num_classes, use_norm=False, WVN=False):
+    return ResNet(PreActBlock, [2,2,2,2],num_classes=num_classes,use_norm=use_norm,WVN=WVN)
 
 def ResNet34(num_classes, use_norm=False, WVN=False):
     return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,use_norm=use_norm,WVN=WVN)
