@@ -12,7 +12,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
   - [Long-tailed Learning](#long-tailed-learning)
   - [Benchmark Datasets](#benchmark-datasets)
 - [3. Our codebase](#3-our-codebase)
-  -[Example execution code for cifar100:](#2-example-execution-code-for-cifar100)
+  - [Example execution code for cifar100:](#2-example-execution-code-for-cifar100)
 - [4. Survey References](#4-survey-references)
 
 
