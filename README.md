@@ -7,7 +7,13 @@ The framework comprises all the basic stages: feature extraction, training, infe
 ### Content
 - [1. Type of Learning Approach](#1-type-of-learning-approach)
 - [2. Top-tier Conference Papers](#2-top-tier-conference-papers)
-
+  - [Long-Tailed Learning with Noisy Labels](#long-tailed-learning-with-noisy-labels)
+  - [Noisy Labels](#noisy-labels)
+  - [Long-tailed Learning](#long-tailed-learning)
+  - [Benchmark Datasets](#benchmark-datasets)
+- [3. Our codebase](#3-our-codebase)
+  -[Example execution code for cifar100:](#2-example-execution-code-for-cifar100)
+- [4. Survey References](#4-survey-references)
 
 
 ## 1. Type of Learning Approach
@@ -36,7 +42,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `Aug`       |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
 | [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |                 |
 
-### Noisy labels
+### Noisy Labels
 
 | Title                                                        |  Venue  | Year |       Type       |                             Code                             |
 | :----------------------------------------------------------- | :-----: | :--: | :--------------: | :----------------------------------------------------------: |
@@ -251,7 +257,7 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 You can check the `results/*.txt`. Results are shown in a table.
 You can load `results/*.best.pth` to resume the trained model.
 
-## 4. Survey References：
+## 4. Survey References
 
 - [Vanint/Awesome-LongTailed-Learning] (https://github.com/Vanint/Awesome-LongTailed-Learning)
 - [weijiaheng/Advances-in-Label-Noise-Learning] (https://github.com/weijiaheng/Advances-in-Label-Noise-Learning)
