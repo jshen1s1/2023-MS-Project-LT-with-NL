@@ -4,11 +4,9 @@ This repository contains the code for Jinghao Shen's MS Project
 
 The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the CIFAR10/CIFAR100 dataset, a resnet baseline is trained and evaluated. The code also allows to test four noise-robust loss functions. 
 
-### Updated 2023-05-30
-
-
-- [1. Type of Learning Approach](#1.-Type-of-Learning-Approach)
-- [2. Top-tier Conference Papers](#2.-Top-tier-Conference-Papers)
+### Content
+- [1. Type of Learning Approach](#1.-type-of-learning-approach)
+- [2. Top-tier Conference Papers](#2.-top-tier-conference-papers)
 
 
 
@@ -33,7 +31,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Identifying Hard Noise in Long-Tailed Sample Distribution](https://arxiv.org/pdf/2207.13378.pdf) |  ECCV   | 2022 |        |         [Official](https://github.com/yxymessi/H2E-Framework)          |
 | [Combating Noisy Labels in Long-Tailed Image Classification](https://arxiv.org/pdf/2209.00273.pdf) |  ICLR   | 2022 |         |                                                              |
 | [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |         |            |
-| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  [Official](https://github.com/xiaoboxia)     |                                                              |
+| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  |                          [Official](https://github.com/xiaoboxia)                                    |
 | [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 |  |    [Official](https://github.com/Stomach-ache/PCL)     |
 | [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `Aug`       |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
 | [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |                 |
