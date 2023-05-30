@@ -7,9 +7,9 @@ The framework comprises all the basic stages: feature extraction, training, infe
 ### Updated 2023-05-30
 
 
-- Long-tailed Distribution
-  * [1. Type of Learning Approach](#Type-of-Learning-Approach)
-  * [2. Top-tier Conference Papers](#Top-tier-Conference-Papers)
+- [1. Type of Learning Approach](#1.-Type-of-Learning-Approach)
+- [2. Top-tier Conference Papers](#2.-Top-tier-Conference-Papers)
+
 
 
 ## 1. Type of Learning Approach
