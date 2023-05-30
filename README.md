@@ -5,8 +5,8 @@ This repository contains the code for Jinghao Shen's MS Project
 The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the CIFAR10/CIFAR100 dataset, a resnet baseline is trained and evaluated. The code also allows to test four noise-robust loss functions. 
 
 ### Content
-- [1. Type of Learning Approach](#1.-type-of-learning-approach)
-- [2. Top-tier Conference Papers](#2.-top-tier-conference-papers)
+- [1. Type of Learning Approach](#1-type-of-learning-approach)
+- [2. Top-tier Conference Papers](#2-top-tier-conference-papers)
 
 
 
