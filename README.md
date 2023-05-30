@@ -4,7 +4,15 @@ This repository contains the code for Jinghao Shen's MS Project
 
 The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the CIFAR10/CIFAR100 dataset, a resnet baseline is trained and evaluated. The code also allows to test four noise-robust loss functions. 
 
-## 1. Type of Long-tailed Learning
+### Updated 2023-05-30
+
+
+- Long-tailed Distribution
+  * [1. Type of Learning Approach](#Type-of-Learning-Approach)
+  * [2. Top-tier Conference Papers](#Top-tier-Conference-Papers)
+
+
+## 1. Type of Learning Approach
 
 | Symbol | `Sampling`  |          `CSL`          |       `LA`       |       `TL`        |       `Aug`       |
 | :----- | :---------: | :---------------------: | :--------------: | :---------------: | :---------------: |
@@ -25,9 +33,9 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Identifying Hard Noise in Long-Tailed Sample Distribution](https://arxiv.org/pdf/2207.13378.pdf) |  ECCV   | 2022 |        |         [Official](https://github.com/yxymessi/H2E-Framework)          |
 | [Combating Noisy Labels in Long-Tailed Image Classification](https://arxiv.org/pdf/2209.00273.pdf) |  ICLR   | 2022 |         |                                                              |
 | [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |         |            |
-| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |         |                                                              |
+| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  [Official](https://github.com/xiaoboxia)     |                                                              |
 | [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 |  |    [Official](https://github.com/Stomach-ache/PCL)     |
-| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |             |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
+| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `Aug`       |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
 | [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |                 |
 
 ### Noisy labels
@@ -41,9 +49,10 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Dual T: Reducing Estimation Error for Transition Matrix in Label-noise Learning](https://arxiv.org/pdf/2006.07805.pdf) |  NeurIPS   | 2020 |         |    [Official](https://github.com/a5507203/dual-t-reducing-estimation-error-for-transition-matrix-in-label-noise-learning)    |
 | [DualGraph: A graph-based method for reasoning about label noise](https://openaccess.thecvf.com/content/CVPR2021/papers/Zhang_DualGraph_A_Graph-Based_Method_for_Reasoning_About_Label_Noise_CVPR_2021_paper.pdf) |  CVPR   | 2021 |         |            |
 | [DivideMix: Learning with Noisy Labels as Semi-supervised Learning](https://arxiv.org/pdf/2002.07394.pdf) |  ICLR   | 2020 |    |        [Official](https://github.com/LiJunnan1992/DivideMix)         |
+| [Peer Loss Functions: Learning from Noisy Labels without Knowing Noise Rates](https://arxiv.org/pdf/1910.03231.pdf) |  ICML   | 2020 |           |          [Unofficial](https://github.com/weijiaheng/Multi-class-Peer-Loss-functions)           |
+| [Superloss: A generic loss for robust curriculum learning](https://proceedings.neurips.cc/paper_files/paper/2020/file/2cfa8f9e50e0f510ede9d12338a5f564-Paper.pdf) |  NeurIPS   | 2020 |           |          [Official](https://github.com/AlanChou/Super-Loss)           |
 | [How does Disagreement Help Generalization against Label Corruption?](https://arxiv.org/pdf/1901.04215.pdf) |  ICML   | 2019 |              | [Official](https://github.com/bhanML/coteaching_plus) |
 | [Co-teaching: Robust Training of Deep Neural Networks with Extremely Noisy Labels](https://arxiv.org/pdf/1804.06872.pdf) |  NeurIPS   | 2018 |           |          [Official](https://github.com/bhanML/Co-teaching)           |
-| [Peer Loss Functions: Learning from Noisy Labels without Knowing Noise Rates](https://arxiv.org/pdf/1910.03231.pdf) |  ICML   | 2020 |           |          [Unofficial](https://github.com/weijiaheng/Multi-class-Peer-Loss-functions)           |
 
 ### Long-tailed Learning
 
@@ -119,47 +128,47 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * CE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CE --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss CE --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * CB_CE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CB_CE --train_rule Reweight --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss CB_CE --train_rule Reweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * CB_Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CB_Focal --train_rule Reweight --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss CB_Focal --train_rule Reweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss Focal --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss Focal --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * LADE:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss LADE --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss LADE --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * LDAM:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss LDAM --train_rule DRW --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss LDAM --train_rule DRW --epochs 200 --num_classes 100 --gpu 0
   ```
 * logits_adjustment:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss logits_adjustment --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss logits_adjustment --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * IB:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss IB --train_rule IBReweight --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss IB --train_rule IBReweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * IB_Focal:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss IBFocal --train_rule IBReweight --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss IBFocal --train_rule IBReweight --epochs 200 --num_classes 100 --gpu 0
   ```
 * BKD:
   ```
@@ -170,22 +179,22 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * VS:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss VS --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss VS --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * WVN+RS:
   ```
   cd ./LT 
-  Training: python main.py --dataset cifar100 --loss CE --train_rule None --epochs 200 --num_classes 100 --gpu 0 --WVN_RS
+  python main.py --dataset cifar100 --loss CE --train_rule None --epochs 200 --num_classes 100 --gpu 0 --WVN_RS
   ```
 * Co-teaching:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss coteaching --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss coteaching --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * Co-teaching_plus:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * Dual_T estimator:
   ```
@@ -196,27 +205,47 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * Dual_T Co-teaching:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --epochs 200 --num_classes 100 --gpu 0
   ```
 * ELR:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss ELR --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss ELR --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
 * CORES:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss cores --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss cores --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
   ```
 * CORES_logits_adjustment:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
   ```
 * DivideMix:
   ```
   cd ./NL 
-  Training: python main.py --dataset cifar100 --loss Semi --train_rule None --epochs 300 --num_classes 100 --gpu 0 --arch ResNet18
+  python main.py --dataset cifar100 --loss Semi --train_rule None --epochs 300 --num_classes 100 --gpu 0 --arch ResNet18
+  ```
+* CNLCU_soft:
+  ```
+  cd ./LT_NL 
+  python main.py --dataset cifar100 --loss CNLCU_soft --train_rule None --train_opt CNLCU_soft --epochs 200 --num_classes 100 --gpu 0
+  ```
+* CNLCU_hard:
+  ```
+  cd ./LT_NL 
+  python main.py --dataset cifar100 --loss CNLCU_hard --train_rule None --train_opt CNLCU_hard --epochs 200 --num_classes 100 --gpu 0
+  ```
+* RoLT:
+  ```
+  cd ./LT_NL 
+  python main.py --dataset cifar100 --loss CE --train_rule None --train_opt RoLT --epochs 200 --num_classes 100 --gpu 0
+  ```
+* PCL:
+  ```
+  cd ./LT_NL
+  python main.py --dataset cifar100 --loss PCL --train_rule None --train_opt PCL --epochs 200 --num_classes 100 --gpu 0 --arch ResNet18 --low_dim
   ```
   
 #### (3) See results:
