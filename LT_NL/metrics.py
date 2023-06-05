@@ -40,16 +40,17 @@ def est_t_matrix(eta_corr, filter_outlier=False):
 def get_noise_rate(t):
     return 1-np.average(t.diagonal())
 
-def get_transition_matrices(est_loader, model, num_classes):
+def get_transition_matrices(est_loader, model, args):
     model.eval()
     est_loader.dataset.eval()
+    num_classes = args.num_classes
     p = []
     T_spadesuit = np.zeros((num_classes,num_classes))
     with torch.no_grad():
         for i, (images, labels, _, _) in enumerate(est_loader):
-            images = images.cuda()
-            labels = labels.cuda()
-            pred = model(images)
+            images = Variable(images).cuda(args.gpu)
+            labels = Variable(labels).cuda(args.gpu)
+            pred, _ = model(images)
             probs = F.softmax(pred, dim=1).cpu().data.numpy()
             _, pred = pred.topk(1, 1, True, True)           
             pred = pred.view(-1).cpu().data
@@ -65,8 +66,8 @@ def get_transition_matrices(est_loader, model, num_classes):
     T_spadesuit = np.nan_to_num(T_spadesuit)
     return T_spadesuit, T_clubsuit
 
-def run_est_T_matrices(est_loader, model, num_classes):
-    T_spadesuit, T_clubsuit = get_transition_matrices(est_loader, model, num_classes)
+def run_est_T_matrices(est_loader, model, args):
+    T_spadesuit, T_clubsuit = get_transition_matrices(est_loader, model, args)
     return T_spadesuit, T_clubsuit
 
 
@@ -74,50 +75,4 @@ def compose_T_matrices(T_spadesuit, T_clubsuit):
     dual_t_matrix = np.matmul(T_spadesuit, T_clubsuit)
     return dual_t_matrix
 
-def validate(val_loader, model, criterion, t_m=np.eye(100)):
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for i, (images, labels) in enumerate(val_loader):
-            images = Variable(images).cuda()
-            # compute output
-            logits = model(images)
-            outputs = F.softmax(logits, dim=1)
-            probs = F.softmax(outputs, dim=1)
-            probs = torch.matmul(probs, t_m)
-            outputs = torch.log(probs+1e-12)
-            _, pred = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (pred.cpu() == labels).sum()
-            acc = 100*float(correct)/float(total) 
-    return acc
 
-def run_forward(train_loader, model, optimizer, scheduler, t_m=np.eye(100), epochs=100):
-    t_m = torch.Tensor(t_m).cuda()
-    for epoch in range(epochs):
-        correct = 0
-        total = 0
-        model.train()
-        train_loader.dataset.train_mode()
-        for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
-            ind=indexes.cpu().numpy().transpose()
-            batch_num = len(indexes)
-            images = Variable(images).cuda()
-            labels = Variable(labels).cuda()
-            output = model(images)
-            probs = F.softmax(output, dim=1)
-            probs = torch.matmul(probs, t_m)
-            output = torch.log(probs+1e-12)
-            loss = F.cross_entropy(output, labels, reduce = False)
-            loss = torch.sum(loss)/output.shape[0]
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            _, predicted = output.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
-        
-        scheduler.step()
-        print('Epoch:', epoch,' Pre-train acc:',100.*correct/total)
-    return model

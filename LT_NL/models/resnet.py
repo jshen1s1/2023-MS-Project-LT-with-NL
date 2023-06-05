@@ -11,10 +11,15 @@ import torch.nn.init as init
 from torch.nn import Parameter
 import math
 
+__all__ = ['ResNet', 'ResNet18', 'ResNet34', 'ResNet50', 'ResNet152']
+
 def _weights_init(m):
     classname = m.__class__.__name__
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
         init.kaiming_normal_(m.weight)
+
+def conv3x3(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 
 class NormedLinear(nn.Module):
 
@@ -27,6 +32,16 @@ class NormedLinear(nn.Module):
         out = F.normalize(x, dim=1).mm(F.normalize(self.weight, dim=0))
         return out
 
+class Normalize(nn.Module):
+
+    def __init__(self, power=2):
+        super(Normalize, self).__init__()
+        self.power = power
+
+    def forward(self, x):
+        norm = x.pow(self.power).sum(1, keepdim=True).pow(1. / self.power)
+        out = x.div(norm)
+        return out
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -81,8 +96,34 @@ class Bottleneck(nn.Module):
         return out
 
 
+class PreActBlock(nn.Module):
+    '''Pre-activation version of the BasicBlock.'''
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1):
+        super(PreActBlock, self).__init__()
+        self.bn1 = nn.BatchNorm2d(in_planes)
+        self.conv1 = conv3x3(in_planes, planes, stride)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv2 = conv3x3(planes, planes)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion*planes:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
+            )
+
+    def forward(self, x):
+        out = F.relu(self.bn1(x))
+        shortcut = self.shortcut(out)
+        out = self.conv1(out)
+        out = self.conv2(F.relu(self.bn2(out)))
+        out += shortcut
+        return out
+    
+
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10, use_norm=False, WVN=False):
+    def __init__(self, block, num_blocks, num_classes=10, use_norm=False, WVN=False, low_dim=False):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
@@ -97,6 +138,9 @@ class ResNet(nn.Module):
             self.apply(_weights_init)
         else:
             self.linear = nn.Linear(512*block.expansion, num_classes)
+        self.fc = nn.Linear(512*block.expansion, 50)
+        self.l2norm = Normalize(2)
+        self.low_dim = low_dim
 
         if WVN:
             self.linear.register_backward_hook(self.__WVN__)
@@ -123,23 +167,31 @@ class ResNet(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, has_out=True):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
         out = F.avg_pool2d(out, 4)
-        out1 = out.view(out.size(0), -1)
-        out = self.linear(out1)
-        return out, torch.sum(torch.abs(out1), 1).reshape(-1, 1)
+        feat = out.view(out.size(0), -1)
+        out = self.linear(feat)
+        if self.low_dim:
+            feat_lowD = self.fc(feat)
+            feat_lowD = self.l2norm(feat_lowD)
+            if has_out:
+                return out, feat_lowD
+            else:
+                return feat_lowD
+        else:
+            return out, feat
 
 
-def ResNet18(num_classes):
-    return ResNet(BasicBlock, [2,2,2,2],num_classes=num_classes)
+def ResNet18(num_classes, use_norm=False, WVN=False, low_dim=False):
+    return ResNet(PreActBlock, [2,2,2,2],num_classes=num_classes,use_norm=use_norm,WVN=WVN, low_dim=low_dim)
 
-def ResNet34(num_classes, use_norm=False, WVN=False):
-    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,use_norm=use_norm,WVN=WVN)
+def ResNet34(num_classes, use_norm=False, WVN=False, low_dim=False):
+    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,use_norm=use_norm,WVN=WVN, low_dim=low_dim)
 
 def ResNet50(num_classes):
     return ResNet(Bottleneck, [3,4,6,3],num_classes=num_classes)
@@ -149,3 +201,20 @@ def ResNet101(num_classes):
 
 def ResNet152(num_classes):
     return ResNet(Bottleneck, [3,8,36,3],num_classes=num_classes)
+
+def test(net):
+    import numpy as np
+    total_params = 0
+
+    for x in filter(lambda p: p.requires_grad, net.parameters()):
+        total_params += np.prod(x.data.numpy().shape)
+    print("Total number of params", total_params)
+    print("Total layers", len(list(filter(lambda p: p.requires_grad and len(p.data.size())>1, net.parameters()))))
+
+
+if __name__ == "__main__":
+    for net_name in __all__:
+        if net_name.startswith('ResNet'):
+            print(net_name)
+            test(globals()[net_name]())
+            print()

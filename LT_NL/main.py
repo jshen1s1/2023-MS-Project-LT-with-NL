@@ -24,6 +24,7 @@ import models
 from loss import *
 from metrics import *
 from utils import *
+from sampler import *
 from trainer import *
 np.random.seed(0)
 
@@ -57,9 +58,12 @@ parser.add_argument('--weight-decay', default=1e-4, type=float, help='weight dec
 parser.add_argument('--loss', type = str, default='cross_entropy')
 parser.add_argument('--random_state', type=int, default=0, help='random state')
 parser.add_argument('--WVN_RS', action='store_true', help = 'whether to use WVN and re-scale weight vector or not')
+parser.add_argument('--low_dim', action='store_true', help = 'whether to lower feature dim or not')
+parser.add_argument('--data_aug', action='store_true', help = 'whether to use feature augmentation or not')
 parser.add_argument('--model_dir', type=str, default=None, help = 'teacher model path')
 parser.add_argument('--save_dir', type=str, default=None, help='save directory path')
 parser.add_argument('--train_rule', default='None', type=str, help='model training strategy')
+parser.add_argument('--train_opt', default='None', type=str, help='model training framework')
 parser.add_argument('--gpu', default=0, type=int, help='GPU id to use.')
 
 args = parser.parse_args()
@@ -82,13 +86,16 @@ def main():
         warm_up = 30
 
     # Data loading code
-    train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state)
+    train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state,aug=args.data_aug)
+    train_sampler = None
+
 
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                   batch_size = args.batch_size, 
                                   num_workers=12,
-                                  shuffle=True,
-                                  pin_memory=True)
+                                  shuffle=(train_sampler is None),
+                                  pin_memory=True,
+                                  sampler=train_sampler)
 
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                   batch_size = args.batch_size, 
@@ -116,7 +123,7 @@ def main():
     # create model
     print("=> creating model '{}'".format(args.arch))
     torch.cuda.set_device(args.gpu)
-    model = models.__dict__[args.arch](num_classes=args.num_classes)
+    model = models.__dict__[args.arch](num_classes=args.num_classes, low_dim=args.low_dim)
     model.to(args.gpu)
 
     optimizer = torch.optim.SGD(model.parameters(),
@@ -127,7 +134,7 @@ def main():
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.scheduler_steps)
 
-    if args.loss in ['coteaching', 'coteaching_plus', 'Semi']:
+    if args.loss in ['coteaching', 'coteaching_plus', 'Semi', 'CNLCU_soft', 'CNLCU_hard']:
         model2 = models.__dict__[args.arch](num_classes=args.num_classes)
         model2.to(args.gpu)
         optimizer2 = torch.optim.SGD(model2.parameters(),
@@ -158,10 +165,14 @@ def main():
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
-    # train rule selection 
-    if args.train_rule == 'None':
-        dual_T_estimation = np.eye(args.num_classes)
-    elif args.train_rule == 'Dual_t':
+    # training init
+    if 'coteaching' in args.loss:
+        forget_rate = DT_noise_rate if args.train_opt == 'Dual_t' else args.noise_rate
+        rate_schedule = np.ones(args.epochs)*forget_rate 
+        rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
+    if args.train_opt == 'Dual_t':
+        train_sampler = None
+        per_cls_weights = None
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 100, gamma = 0.1)
 
         true_t_matrix = train_loader.dataset.t_matrix
@@ -184,19 +195,49 @@ def main():
         DT_noise_rate = get_noise_rate(dual_T_estimation)
 
         dual_T_estimation = torch.Tensor(dual_T_estimation).cuda(args.gpu)
-    elif args.train_rule == 'CORES':
+    else:
+        dual_T_estimation = np.eye(args.num_classes)
+    if 'cores' in args.loss:
         noise_prior = img_num_per_cls/num_training_samples
         noise_prior_cur = noise_prior
 
         loss_div_all = np.zeros((num_training_samples,int(args.epochs/5)))
         noise_prior_all = np.zeros((args.num_classes,args.epochs))
-    else:
-        warnings.warn('Sample rule is not listed')
+    if args.train_opt == 'RoLT':
+        args.noisy_labels = torch.LongTensor(est_loader.dataset.train_labels).cuda()
+        #clean_labels = torch.LongTensor(train_loader.dataset.true_labels).cuda()
+        args.current_labels = args.noisy_labels
+        args.soft_targets = [args.noisy_labels]
+        args.soft_weights = [1]
 
-    if 'coteaching' in args.loss:
-        forget_rate = DT_noise_rate if args.train_rule == 'Dual_t' else args.noise_rate
+        ncm_classifier = models.__dict__['KNN'](feat_dim=512, num_classes=args.num_classes)
+        lr_scheduler = WarmupMultiStepLR(optimizer, milestones=args.scheduler_steps)
+
+        if args.train_rule == 'DRW':
+            args.train_opt = 'RoLT-DRW'
+    if 'CNLCU' in args.train_opt:
+        forget_rate = DT_noise_rate if args.train_opt == 'Dual_t' else args.noise_rate
         rate_schedule = np.ones(args.epochs)*forget_rate 
         rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
+        co_lambda_plan = args.weight_decay * np.linspace(1, 0, 80) 
+    if args.train_opt == 'PCL':
+        weights = None
+        if args.dataset == 'cifar10':
+            ramp_epoch = 0
+            args.w_proto = 5
+            args.knn_start_epoch = 5
+            args.n_neighbors = 10
+            args.low_th = 0.1
+            args.high_th = -0.4
+            args.gamma = 1.005
+        elif args.dataset == 'cifar100':
+            ramp_epoch = 40
+            args.w_proto = 7
+            args.knn_start_epoch = 15
+            args.n_neighbors = 200
+            args.low_th = 0.01
+            args.high_th = 0.02
+            args.gamma = 1.005
 
     # init log for training
     if not args.save_dir:
@@ -208,7 +249,7 @@ def main():
         os.system('mkdir -p %s' % save_dir)
 
 
-    txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.train_rule == 'Dual_t' else '') + ('WVN_RS' if args.WVN_RS else '') + '.txt' 
+    txtfile=save_dir + '/' +  args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + (args.train_opt if args.train_opt else '') + ('WVN_RS' if args.WVN_RS else '') + '.txt' 
     if os.path.exists(txtfile):
         os.system('rm %s' % txtfile)
     with open(txtfile, "a") as myfile:
@@ -217,6 +258,39 @@ def main():
     # training epoches
     for epoch in range(args.start_epoch, args.epochs):
         print('=> current epoch',epoch)
+        # train rule selection 
+        if args.train_rule == 'None':
+            train_sampler = None
+            per_cls_weights = None
+        elif args.train_rule == 'Resample':
+            train_sampler = ImbalancedDatasetSampler(train_dataset)
+            per_cls_weights = None
+        elif args.train_rule == 'Reweight':
+            train_sampler = None
+            beta = 0.9999
+            effective_num = 1.0 - np.power(beta, img_num_per_cls)
+            per_cls_weights = (1.0 - beta) / np.array(effective_num)
+            per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(img_num_per_cls)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
+        elif args.train_rule == 'IBReweight':
+            train_sampler = None
+            per_cls_weights = 1.0 / np.array(img_num_per_cls)
+            per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(img_num_per_cls)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
+        elif args.train_rule == 'DRW':
+            if args.train_opt == 'RoLT':
+                img_num_per_cls = np.array([(args.current_labels == i).sum().item() \
+                                             for i in range(args.num_classes)])
+            train_sampler = None
+            idx = epoch // 160
+            betas = [0, 0.9999]
+            effective_num = 1.0 - np.power(betas[idx], img_num_per_cls)
+            per_cls_weights = (1.0 - betas[idx]) / np.array(effective_num)
+            per_cls_weights = per_cls_weights / np.sum(per_cls_weights) * len(img_num_per_cls)
+            per_cls_weights = torch.FloatTensor(per_cls_weights).cuda(args.gpu)
+        else:
+            warnings.warn('Sample rule is not listed')
+    
         if args.loss == 'CE':
             criterion = cross_entropy
         elif args.loss == 'cores':
@@ -229,8 +303,6 @@ def main():
             criterion = elr
         elif args.loss == 'CLS':
             criterion = NLLL
-        #elif args.loss == 'DMI':
-        #    criterion = DMI_loss
         elif args.loss == 'coteaching':
             criterion = co_teaching
         elif args.loss == 'coteaching_plus':
@@ -243,6 +315,20 @@ def main():
                 criterion = cross_entropy
             else:
                 criterion = semi_loss
+        elif 'CNLCU' in args.loss:
+            if 'soft' in args.loss:
+                criterion = CNLCU_soft
+            else:
+                criterion = CNLCU_hard
+            before_loss_1 = 0.0 * np.ones((len(train_dataset), 1))
+            before_loss_2 = 0.0 * np.ones((len(train_dataset), 1))
+            sn_1 = torch.from_numpy(np.ones((len(train_dataset), 1)))
+            sn_2 = torch.from_numpy(np.ones((len(train_dataset), 1)))
+        elif args.loss == 'PCL':
+            if epoch < 1:
+                criterion = cross_entropy
+            else:
+                criterion = PCL
         else:
             warnings.warn('Loss type is not listed')
             return
@@ -293,11 +379,50 @@ def main():
                                   shuffle=True,
                                   pin_memory=True)
             train_acc2 = run_divideMix(epoch,args,model2,model,optimizer2,criterion,labeled_trainloader,unlabeled_trainloader,loss_all)
+        elif 'RoLT' in args.train_opt:
+            label_cleaning_RoLT(est_loader, model, epoch, ncm_classifier, args)
+            train_acc = run_RoLT(train_loader, criterion, per_cls_weights, model, optimizer, epoch, args, loss_all)
+            train_acc2 = 0
+        elif 'CNLCU' in args.train_opt:
+            train_acc, train_acc2, before_loss_1_list, before_loss_2_list, ind_1_update_list, ind_2_update_list = run_CNLCU(train_loader, criterion, epoch, args, 
+                                                                                                                            model, 
+                                                                                                                            optimizer, 
+                                                                                                                            model2, 
+                                                                                                                            optimizer2, 
+                                                                                                                            rate_schedule, 
+                                                                                                                            before_loss_1, 
+                                                                                                                            before_loss_2, 
+                                                                                                                            sn_1, 
+                                                                                                                            sn_2, 
+                                                                                                                            co_lambda_plan)
+
+            if 'soft' in args.train_opt:
+                before_loss_1, before_loss_2 = np.array(before_loss_1_list).astype(float), np.array(before_loss_2_list).astype(float)
+            else:
+                before_loss_1_, before_loss_2_ = np.array(before_loss_1_list).astype(float), np.array(before_loss_2_list).astype(float)
+                before_loss_1_numpy = np.zeros((len(train_dataset), 1))
+                before_loss_2_numpy = np.zeros((len(train_dataset), 1))
+                num = before_loss_1_.shape[0]
+                before_loss_1_numpy[:num], before_loss_2_numpy[:num] = before_loss_1_[:, np.newaxis], before_loss_2_[:, np.newaxis]
+                
+                before_loss_1 = np.concatenate((before_loss_1, before_loss_1_numpy), axis=1)
+                before_loss_2 = np.concatenate((before_loss_2, before_loss_2_numpy), axis=1)
+
+            all_zero_array_1, all_zero_array_2 = np.zeros((len(train_dataset), 1)), np.zeros((len(train_dataset), 1))
+            all_zero_array_1[np.array(ind_1_update_list)] = 1
+            all_zero_array_2[np.array(ind_2_update_list)] = 1
+            sn_1 += torch.from_numpy(all_zero_array_1)
+            sn_2 += torch.from_numpy(all_zero_array_2)
+        elif args.train_opt == 'PCL' and epoch >= 1:
+            if ramp_epoch: 
+                args.w_proto = min(1+epoch*(args.w_proto-1)/ramp_epoch, args.w_proto)
+            train_acc, weights = run_PCL(train_loader, est_loader, criterion, per_cls_weights, weights, model, optimizer, epoch, args, loss_all)
+            train_acc2 = 0
         else:
             loader = warmup_loader if args.loss == 'Semi' else train_loader
-            train_acc = train(loader, criterion, model, optimizer, epoch, args, loss_all, t_m=dual_T_estimation)
+            train_acc = train(loader, criterion, per_cls_weights, model, optimizer, epoch, args, loss_all, t_m=dual_T_estimation)
             if model2:
-                train_acc2 = train(loader, criterion, model2, optimizer2, epoch, args, loss_all, t_m=dual_T_estimation)
+                train_acc2 = train(loader, criterion, per_cls_weights, model2, optimizer2, epoch, args, loss_all, t_m=dual_T_estimation)
             else:
                 train_acc2 = 0
 
@@ -319,7 +444,7 @@ def main():
         # remember best acc@1 and save checkpoint
         is_best = max(acc1,acc2)>best_acc1
         best_acc1 = max(acc1,acc2,best_acc1)
-        path = save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.train_rule == 'Dual_t' else '') + ('WVN_RS' if args.WVN_RS else '') + '.pth'
+        path = save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + (args.train_opt if args.train_opt else '') + ('WVN_RS' if args.WVN_RS else '') + '.pth'
         if acc1>acc2:
             save_checkpoint(path, {
                 'epoch': epoch + 1,
@@ -344,7 +469,7 @@ def main():
             myfile.write(str(int(epoch)) + ': '  + str(train_acc) +' ' + str(max(acc1,acc2)) + ' ' + str(best_acc1) + "\n")
 
 
-def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=np.eye(100)):
+def train(train_loader, criterion, per_cls_weights, model, optimizer, epoch, args, loss_all, t_m=np.eye(100)):
     # switch to train mode
     model.train()    
     train_loader.dataset.train_mode()
@@ -353,16 +478,16 @@ def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=
     correct = 0
     total = 0
     num_iter = (len(train_loader.dataset)//train_loader.batch_size)+1
-    for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
-        ind=indexes.cpu().numpy().transpose()
-        images = Variable(images).cuda(args.gpu)
-        labels = Variable(labels).cuda(args.gpu)
+    for i, batch in enumerate(train_loader):
+        ind=batch[3].cpu().numpy().transpose()
+        images = Variable(batch[0]).cuda(args.gpu)
+        labels = Variable(batch[1]).cuda(args.gpu)
         outputs, _ = model(images)
-        if args.train_rule == 'Dual_t':
+        if args.train_opt == 'Dual_t':
             probs = F.softmax(output, dim=1)
             probs = torch.matmul(probs, t_m)
             output = torch.log(probs+1e-12)
-        loss = criterion(epoch,outputs,labels,ind,img_num_per_cls,loss_all)
+        loss = criterion(epoch,outputs,labels,ind,img_num_per_cls,per_cls_weights,loss_all)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -376,7 +501,7 @@ def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=
         sys.stdout.flush()       
 
     acc = 100.*float(correct)/float(total) 
-    np.save(args.save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + ('DT' if args.train_rule == 'Dual_t' else '') + ('WVN_RS' if args.WVN_RS else '') +'_loss_all.npy',loss_all)
+    np.save(args.save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + (args.train_opt if args.train_opt else '') + ('WVN_RS' if args.WVN_RS else '') +'_loss_all.npy',loss_all)
     return acc
 
 
@@ -391,7 +516,7 @@ def validate(val_loader, model, args, t_m=np.eye(100)):
             # compute output
             logits, _ = model(images)
             outputs = F.softmax(logits, dim=1)
-            if args.train_rule == 'Dual_t':
+            if args.train_opt == 'Dual_t':
                 probs = F.softmax(outputs, dim=1)
                 probs = torch.matmul(probs, t_m)
                 outputs = torch.log(probs+1e-12)
@@ -416,7 +541,7 @@ def test(val_loader, model, model2, args, t_m=np.eye(100)):
             outputs1, _ = model(images)
             outputs2, _ = model2(images)
             outputs = outputs1+outputs2
-            if args.train_rule == 'Dual_t':
+            if args.train_opt == 'Dual_t':
                 probs = F.softmax(outputs, dim=1)
                 probs = torch.matmul(probs, t_m)
                 outputs = torch.log(probs+1e-12)

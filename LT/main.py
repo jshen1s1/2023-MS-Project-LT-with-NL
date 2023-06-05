@@ -50,7 +50,7 @@ parser.add_argument('--dataset', type = str, help='[cifar10,cifar100]', default=
 parser.add_argument('--lt_type', type = str, help='[None, exp, step]', default='exp')
 parser.add_argument('--lt_rate', type = float, help = 'corruption rate, should be less than 1', default = 0.02)
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
-parser.add_argument('--weight-decay', default=1e-4, type=float, help='weight decay (default: 1e-4)')
+parser.add_argument('--weight-decay', default=1e-4, type=float, help='weight decay (default: 1e-4)', dest='weight_decay')
 parser.add_argument('--loss', type = str, default='cross_entropy')
 parser.add_argument('--random_state', type=int, default=0, help='random state')
 parser.add_argument('--WVN_RS', action='store_true', help = 'whether to use WVN and re-scale weight vector or not')

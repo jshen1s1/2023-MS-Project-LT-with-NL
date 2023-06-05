@@ -12,7 +12,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
   - [Long-tailed Learning](#long-tailed-learning)
   - [Benchmark Datasets](#benchmark-datasets)
 - [3. Our codebase](#3-our-codebase)
-  - [Example execution code for cifar100:](#2-example-execution-code-for-cifar100)
+  - [Example execution code for cifar100](#2-example-execution-code-for-cifar100)
 - [4. Survey References](#4-survey-references)
 
 
@@ -249,7 +249,7 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * PCL:
   ```
   cd ./LT_NL
-  python main.py --dataset cifar100 --loss PCL --train_rule None --train_opt PCL --epochs 200 --num_classes 100 --gpu 0 --arch ResNet18 --low_dim
+  python main.py --dataset cifar100 --loss PCL --train_rule None --train_opt PCL --epochs 200 --num_classes 100 --gpu 0 --arch ResNet18 --low_dim --data_aug
   ```
   
 #### (3) See results:
