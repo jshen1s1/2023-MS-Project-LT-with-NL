@@ -216,6 +216,11 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
   cd ./NL 
   python main.py --dataset cifar100 --loss ELR --train_rule None --epochs 200 --num_classes 100 --gpu 0
   ```
+* Super:
+  ```
+  cd ./NL 
+  python main.py --dataset cifar100 --loss super --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  ```
 * CORES:
   ```
   cd ./NL 

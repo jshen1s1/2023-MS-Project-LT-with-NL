@@ -229,8 +229,8 @@ def main():
             criterion = elr
         elif args.loss == 'CLS':
             criterion = NLLL
-        #elif args.loss == 'DMI':
-        #    criterion = DMI_loss
+        elif args.loss == 'super':
+            criterion = super_loss
         elif args.loss == 'coteaching':
             criterion = co_teaching
         elif args.loss == 'coteaching_plus':

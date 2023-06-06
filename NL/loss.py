@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import random
+import math
+from scipy.special import lambertw
 # Loss functions
 
 def get_one_hot(label, num_classes):
@@ -272,19 +274,25 @@ def semi_loss(epoch, logits_x, label_x, logits_u, label_u, img_num_per_cls):
 
     return Lx, Lu, lamb
 
-'''
-def DMI_loss(epoch,logits,label,ind,img_num_per_cls,loss_all,num_example=5000):
+
+def super_loss(epoch,logits,label,ind,img_num_per_cls,loss_all):
     num_batch = logits.shape[0]
     num_classes = len(img_num_per_cls)
-    outputs = F.softmax(logits, dim=1)
-    targets = label.reshape(label.size(0), 1).cpu()
-    y_onehot = torch.FloatTensor(label.size(0), num_classes).zero_()
-    y_onehot.scatter_(1, targets, 1)
-    y_onehot = y_onehot.transpose(0, 1).cuda()
-    mat = y_onehot @ outputs
-    loss = -torch.log(torch.abs(torch.det(mat.float())) + 1e-8)
+    tau = math.log(num_classes)
+    lam = 1 if num_classes == 10 else 0.25
+    cross_entropy = F.cross_entropy(logits, label, reduction='none').detach()
+
+    x = torch.ones(cross_entropy.size())*(-2/math.exp(1.))
+    x = x.cuda()
+    y = 0.5*torch.max(x, (cross_entropy-tau)/lam)
+    y = y.cpu().numpy()
+    sigma = np.exp(-lambertw(y))
+    sigma = sigma.real.astype(np.float32)
+    sigma = torch.from_numpy(sigma).cuda()
+    
+    loss = (F.cross_entropy(logits, label, reduction='none') - tau)*sigma + lam*(torch.log(sigma)**2)
+
     loss_numpy = loss.data.cpu().numpy()
     if epoch%5==0:
         loss_all[ind,int(epoch/5)] = loss_numpy
-    return loss
-'''
+    return torch.sum(loss)/num_batch
