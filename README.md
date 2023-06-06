@@ -256,7 +256,13 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
   cd ./LT_NL
   python main.py --dataset cifar100 --loss PCL --train_rule None --train_opt PCL --epochs 200 --num_classes 100 --gpu 0 --arch ResNet18 --low_dim --data_aug
   ```
-  
+* LA+SL:
+  ```
+  cd ./LT_NL
+  Stage 1: python main.py --dataset cifar100 --loss cos --train_rule None --train_opt SimSiam --epochs 200 --num_classes 100 --gpu 0 --arch ResNet18 --batch_size 512
+  Stage 2: python main.py --dataset cifar100 --loss super_logits_adjustment --train_rule None --epochs 400 --num_classes 100 --gpu 0 --arch SimSiam_SSL --resume results/cifar100/cos/symmetric0.3exp0.02SimSiam.pth
+  ```  
+
 #### (3) See results:
 
 You can check the `results/*.txt`. Results are shown in a table.

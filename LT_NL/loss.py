@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import random
+import math
+from scipy.special import lambertw
 from sklearn.neighbors import LocalOutlierFactor
 
 
@@ -438,3 +440,36 @@ def PCL(epoch,logits,label,instance_logits,instance_labels,ind,img_num_per_cls,p
     loss_instance =  F.cross_entropy(instance_logits/temperature, instance_labels, weight=per_cls_weights, reduction='none')               
 
     return loss.mean(), loss_instance.mean()
+
+def cos_similarity(epoch,logits,label,logits2,label2):
+    loss = -(F.cosine_similarity(logits, label2, dim=1).mean() + F.cosine_similarity(logits2, label, dim=1).mean()) * 0.5
+
+    return loss
+
+def super_logits_adjustment(epoch,logits,label,ind,img_num_per_cls,per_cls_weights,loss_all):
+    num_batch = logits.shape[0]
+    num_classes = len(img_num_per_cls)
+    tau = math.log(num_classes)
+    lam = 1 if num_classes == 10 else 0.25
+
+    tro = 1.0
+    label_frequency = img_num_per_cls/sum(img_num_per_cls)
+    adjustment = np.log(label_frequency ** tro + 1e-12)
+    logits = logits + torch.FloatTensor(adjustment).cuda()
+    
+    la_loss = F.cross_entropy(logits, label, reduction='none', weight=per_cls_weights).detach()
+
+    x = torch.ones(la_loss.size())*(-2/math.exp(1.))
+    x = x.cuda()
+    y = 0.5*torch.max(x, (la_loss-tau)/lam)
+    y = y.cpu().numpy()
+    sigma = np.exp(-lambertw(y))
+    sigma = sigma.real.astype(np.float32)
+    sigma = torch.from_numpy(sigma).cuda()
+    
+    loss = (F.cross_entropy(logits, label, reduction='none', weight=per_cls_weights) - tau)*sigma + lam*(torch.log(sigma)**2)
+
+    loss_numpy = loss.data.cpu().numpy()
+    if epoch%5==0:
+        loss_all[ind,int(epoch/5)] = loss_numpy
+    return torch.sum(loss)/num_batch

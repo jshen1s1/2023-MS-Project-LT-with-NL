@@ -462,3 +462,35 @@ def run_PCL(train_loader, eval_loader, criterion, per_cls_weights, weights, mode
     acc = record['train_accuracy']
     np.save(args.save_dir + '/' + args.noise_type + str(args.noise_rate) + args.lt_type + str(args.lt_rate) + (args.train_opt if args.train_opt else '') + ('WVN_RS' if args.WVN_RS else '') +'_loss_all.npy',loss_all)
     return acc, weights
+
+def train_SimSiam(train_loader, model, criterion, optimizer, epoch, args):
+    # switch to train mode
+    model.train()
+
+    correct = 0
+    total = 0
+    num_iter = (len(train_loader.dataset)//train_loader.batch_size)+1
+    for i, (images, labels, _, _) in enumerate(train_loader):
+        images[0] = Variable(images[0]).cuda(args.gpu, non_blocking=True)
+        images[1] = Variable(images[1]).cuda(args.gpu, non_blocking=True)
+        labels = Variable(labels).cuda(args.gpu, non_blocking=True)
+
+        # compute output and loss
+        p1, p2, z1, z2 = model(x1=images[0], x2=images[1])
+        loss = criterion(epoch,p1,z1,p2,z2)
+
+        # compute gradient and do SGD step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        _, pred = torch.max(p1.data, 1)
+        total += labels.size(0)
+        correct += pred.eq(labels).sum().item()   
+
+        sys.stdout.write('\r')
+        sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+        sys.stdout.flush()  
+
+    acc = 100.*float(correct)/float(total) 
+    return acc

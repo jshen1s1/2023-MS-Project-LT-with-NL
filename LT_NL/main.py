@@ -155,9 +155,9 @@ def main():
             checkpoint = torch.load(args.resume, map_location='cuda:0')
             args.start_epoch = checkpoint['epoch']
             best_acc1 = checkpoint['best_acc1']
-            if args.gpu is not None:
+            #if args.gpu is not None:
                 # best_acc1 may be from a checkpoint from a different GPU
-                best_acc1 = best_acc1.to(args.gpu)
+                #best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
@@ -238,6 +238,26 @@ def main():
             args.low_th = 0.01
             args.high_th = 0.02
             args.gamma = 1.005
+    if args.train_opt == 'SimSiam':
+        model = models.__dict__['SimSiam_SSL'](model,args.num_classes,512,freeze=False)
+        model.to(args.gpu)
+
+        optimizer = torch.optim.SGD(model.parameters(),
+                                    args.lr,
+                                    momentum=args.momentum,
+                                    weight_decay=args.weight_decay,
+                                    nesterov=True)
+
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.scheduler_steps)
+
+        train_dataset,test_dataset = input_dataset(args.dataset, args.noise_type, args.noise_rate,args.lt_type,args.lt_rate,args.random_state,simsiam=True)
+
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                  batch_size = args.batch_size, 
+                                  num_workers=12,
+                                  shuffle=(train_sampler is None),
+                                  pin_memory=True,
+                                  sampler=train_sampler)
 
     # init log for training
     if not args.save_dir:
@@ -293,6 +313,8 @@ def main():
     
         if args.loss == 'CE':
             criterion = cross_entropy
+        elif args.loss == 'cos':
+            criterion = cos_similarity
         elif args.loss == 'cores':
             criterion = cores
         elif args.loss == 'cores_no_select':
@@ -303,6 +325,8 @@ def main():
             criterion = elr
         elif args.loss == 'CLS':
             criterion = NLLL
+        elif args.loss == 'super_logits_adjustment':
+            criterion = super_logits_adjustment
         elif args.loss == 'coteaching':
             criterion = co_teaching
         elif args.loss == 'coteaching_plus':
@@ -418,6 +442,9 @@ def main():
                 args.w_proto = min(1+epoch*(args.w_proto-1)/ramp_epoch, args.w_proto)
             train_acc, weights = run_PCL(train_loader, est_loader, criterion, per_cls_weights, weights, model, optimizer, epoch, args, loss_all)
             train_acc2 = 0
+        elif args.train_opt == 'SimSiam':
+            train_acc = train_SimSiam(train_loader, model, criterion, optimizer, epoch, args)
+            train_acc2 = 0
         else:
             loader = warmup_loader if args.loss == 'Semi' else train_loader
             train_acc = train(loader, criterion, per_cls_weights, model, optimizer, epoch, args, loss_all, t_m=dual_T_estimation)
@@ -433,6 +460,9 @@ def main():
         # evaluate 
         if args.loss == 'Semi':
             acc1 = test(test_loader, model, model2, args, t_m=np.eye(args.num_classes))
+            acc2 = 0
+        elif args.train_opt == 'SimSiam':
+            acc1 = train_acc
             acc2 = 0
         else:
             acc1 = validate(test_loader, model, args, t_m=np.eye(args.num_classes))

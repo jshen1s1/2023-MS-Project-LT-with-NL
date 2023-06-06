@@ -6,6 +6,7 @@ import os.path
 import copy
 import hashlib
 import errno
+import random
 import shutil
 import warnings
 import numpy as np
@@ -15,6 +16,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from bisect import bisect_right
 from sklearn.mixture import GaussianMixture
+from PIL import ImageFilter
 
 
 class CIFAR10Pair(CIFAR10):
@@ -33,22 +35,6 @@ class CIFAR10Pair(CIFAR10):
             target = self.target_transform(target)
 
         return pos_1, pos_2, target
-
-
-train_transform = transforms.Compose([
-    transforms.RandomResizedCrop(32),
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-    transforms.RandomGrayscale(p=0.2),
-    transforms.ToTensor(),
-    transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010])])
-
-
-test_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010])])
-
-
 
 
 # basic function#
@@ -238,6 +224,7 @@ def accuracy(output, target, topk=(1,)):
         return res
     
     
+# WarmupMultiStepLR scheduler
 class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     def __init__(
         self,
@@ -283,6 +270,8 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
             for base_lr in self.base_lrs
         ]
     
+
+# label cleaning for RoLT
 def get_knncentroids(feats=None, labels=None, mask=None):
     
     if feats is not None and labels is not None:
@@ -325,8 +314,6 @@ def get_knncentroids(feats=None, labels=None, mask=None):
             'l2ncs': l2n_centers,   
             'cl2ncs': cl2n_centers}
     
-
-
 def label_cleaning_RoLT(est_loader, model, epoch, ncm_classifier, args):
     def get_gmm_mask(ncm_logits):
         mask = torch.zeros_like(args.noisy_labels).bool()
@@ -422,7 +409,7 @@ def label_cleaning_RoLT(est_loader, model, epoch, ncm_classifier, args):
 
     return
 
-
+# label cleaning for PCL
 def label_clean_PCL(args,epoch,features,labels,probs,prototypes,clean_label=None):
     gamma = 1.005
     temperature = 0.3
@@ -455,3 +442,27 @@ def label_clean_PCL(args,epoch,features,labels,probs,prototypes,clean_label=None
             weights[n] *= 0.5
 
     return hard_labels, clean_idx, weights
+
+# loader for SimSiam
+class TwoCropsTransform:
+    """Take two random crops of one image as the query and key."""
+
+    def __init__(self, base_transform):
+        self.base_transform = base_transform
+
+    def __call__(self, x):
+        q = self.base_transform(x)
+        k = self.base_transform(x)
+        return [q, k]
+
+
+class GaussianBlur(object):
+    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
+
+    def __init__(self, sigma=[.1, 2.]):
+        self.sigma = sigma
+
+    def __call__(self, x):
+        sigma = random.uniform(self.sigma[0], self.sigma[1])
+        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return x

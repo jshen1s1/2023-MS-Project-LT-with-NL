@@ -3,6 +3,7 @@ import numpy as np
 import torchvision.transforms as transforms
 from bias_cifar import CIFAR10_bias, CIFAR100_bias
 from torchvision.datasets import CIFAR10,CIFAR100
+from utils import GaussianBlur, TwoCropsTransform
 
 
 train_cifar10_transform = transforms.Compose([
@@ -29,12 +30,36 @@ test_cifar100_transform = transforms.Compose([
     transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
 ])
 
+cifar10_augmentation_transform = TwoCropsTransform(transforms.Compose([
+    transforms.RandomResizedCrop(32, scale=(0.2, 1.)),
+    transforms.RandomApply([
+        transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+    ], p=0.8),
+    transforms.RandomGrayscale(p=0.2),
+    transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+]))
+
+cifar100_augmentation_transform = TwoCropsTransform(transforms.Compose([
+    transforms.RandomResizedCrop(32, scale=(0.2, 1.)),
+    transforms.RandomApply([
+        transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)  # not strengthened
+    ], p=0.8),
+    transforms.RandomGrayscale(p=0.2),
+    transforms.RandomApply([GaussianBlur([.1, 2.])], p=0.5),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+]))
+
 def transform_target(label):
     label = np.array(label)
     target = torch.from_numpy(label).long()
     return target  
 
-def input_dataset(dataset, noise_type, noise_ratio,lt_type,lt_ratio,random_state,aug=False,split=False,pred=[],prob=[]):
+def input_dataset(dataset, noise_type, noise_ratio,lt_type,lt_ratio,random_state,aug=False,split=False,simsiam=False,pred=[],prob=[]):
     if dataset == 'cifar10' and split:
         labeled_dataset  = CIFAR10_bias(root='./data/',
                                 download=False,  
@@ -97,6 +122,34 @@ def input_dataset(dataset, noise_type, noise_ratio,lt_type,lt_ratio,random_state
                                 aug=aug
                            )
         return labeled_dataset, unlabeled_dataset
+    elif dataset == 'cifar10' and simsiam:
+        train_dataset = CIFAR10_bias(root='./data/',
+                                download=False,  
+                                train=True, 
+                                transform = cifar10_augmentation_transform,
+                                transform_eval = test_cifar10_transform,
+                                noise_type=noise_type,
+                                noise_rate=noise_ratio,
+                                lt_type = lt_type,
+                                lt_ratio = lt_ratio,
+                                random_state=random_state,
+                                aug=aug
+                           )
+        test_dataset = CIFAR10(root='data', train=False, transform=test_cifar10_transform, download=True)
+    elif dataset == 'cifar100' and simsiam:
+        train_dataset = CIFAR100_bias(root='./data/',
+                                download=False,  
+                                train=True, 
+                                transform = cifar100_augmentation_transform,
+                                transform_eval = test_cifar100_transform,
+                                noise_type=noise_type,
+                                noise_rate=noise_ratio,
+                                lt_type = lt_type,
+                                lt_ratio = lt_ratio,
+                                random_state=random_state,
+                                aug=aug
+                           )
+        test_dataset = CIFAR100(root='data', train=False, transform=test_cifar100_transform, download=True)
     elif dataset == 'cifar10':
         train_dataset = CIFAR10_bias(root='./data/',
                                 download=False,  
