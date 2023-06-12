@@ -43,10 +43,19 @@ class Normalize(nn.Module):
         out = x.div(norm)
         return out
 
+class LambdaLayer(nn.Module):
+
+    def __init__(self, lambd):
+        super(LambdaLayer, self).__init__()
+        self.lambd = lambd
+
+    def forward(self, x):
+        return self.lambd(x)
+    
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_planes, planes, stride=1):
+    def __init__(self, in_planes, planes, stride=1, mode='A'):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -55,10 +64,13 @@ class BasicBlock(nn.Module):
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
-            )
+            if mode == 'A':
+                self.shortcut = nn.Sequential(
+                    nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
+                )
+            elif mode == 'B':
+                self.shortcut = LambdaLayer(lambda x:
+                                            F.pad(x[:, :, ::2, ::2], (0, 0, 0, 0, planes//4, planes//4), "constant", 0))
 
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
@@ -123,9 +135,10 @@ class PreActBlock(nn.Module):
     
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10, use_norm=False, WVN=False, low_dim=False):
+    def __init__(self, block, num_blocks, num_classes=10, use_norm=False, WVN=False, low_dim=False, mode='A'):
         super(ResNet, self).__init__()
         self.in_planes = 64
+        self.mode = mode
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -163,7 +176,10 @@ class ResNet(nn.Module):
         strides = [stride] + [1]*(num_blocks-1)
         layers = []
         for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
+            if self.mode != 'A':
+                layers.append(block(self.in_planes, planes, stride, self.mode))
+            else:
+                layers.append(block(self.in_planes, planes, stride))
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
@@ -187,11 +203,11 @@ class ResNet(nn.Module):
             return out, feat
 
 
-def ResNet18(num_classes, use_norm=False, WVN=False, low_dim=False):
+def ResNet18(num_classes, use_norm=False, WVN=False, low_dim=False, network_mode='A'):
     return ResNet(PreActBlock, [2,2,2,2],num_classes=num_classes,use_norm=use_norm,WVN=WVN, low_dim=low_dim)
 
-def ResNet34(num_classes, use_norm=False, WVN=False, low_dim=False):
-    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,use_norm=use_norm,WVN=WVN, low_dim=low_dim)
+def ResNet34(num_classes, use_norm=False, WVN=False, low_dim=False, network_mode='A'):
+    return ResNet(BasicBlock, [3,4,6,3],num_classes=num_classes,use_norm=use_norm,WVN=WVN, low_dim=low_dim, mode=network_mode)
 
 def ResNet50(num_classes):
     return ResNet(Bottleneck, [3,4,6,3],num_classes=num_classes)

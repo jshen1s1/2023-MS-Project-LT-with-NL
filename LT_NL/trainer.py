@@ -232,7 +232,7 @@ def run_RoLT(train_loader, criterion, per_cls_weights, model, optimizer, epoch, 
         images = Variable(images).cuda(args.gpu)
         labels = Variable(labels).cuda(args.gpu)
         labels = args.current_labels[indexes]
-        outputs, _ = model(images)
+        outputs, feat = model(images)
         loss = 0
         for soft_weight, soft_target in zip(args.soft_weights, args.soft_targets):
             targets = soft_target[indexes]
@@ -314,7 +314,7 @@ def run_CNLCU(train_loader, criterion, epoch, args, model1, optimizer1, model2, 
         optimizer2.step()
 
         sys.stdout.write('\r')
-        sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss1: %.2f  Loss2: %.2f'
+        sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss1: %.4f  Loss2: %.4f'
                 %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss_1.item(), loss_2.item()))
         sys.stdout.flush()
 

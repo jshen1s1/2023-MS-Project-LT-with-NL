@@ -39,7 +39,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |         |            |
 | [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  |                          [Official](https://github.com/xiaoboxia)                                    |
 | [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 |  |    [Official](https://github.com/Stomach-ache/PCL)     |
-| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `Aug`       |      [Unofficial](https://github.com/Stomach-ache/RoLT)      |
+| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `Aug`       |      [Official](https://github.com/Stomach-ache/RoLT)      |
 | [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |                 |
 
 ### Noisy Labels
@@ -193,12 +193,12 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * Co-teaching:
   ```
   cd ./NL 
-  python main.py --dataset cifar100 --loss coteaching --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss coteaching --train_rule None --epochs 200 --num_classes 100 --gpu 0 --drop_last
   ```
 * Co-teaching_plus:
   ```
   cd ./NL 
-  python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss coteaching_plus --train_rule None --epochs 200 --num_classes 100 --gpu 0 --drop_last
   ```
 * Dual_T estimator:
   ```
@@ -209,7 +209,7 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * Dual_T Co-teaching:
   ```
   cd ./NL 
-  python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss_type coteaching --train_rule Dual_t --epochs 200 --num_classes 100 --gpu 0 --drop_last
   ```
 * ELR:
   ```
@@ -239,12 +239,12 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * CNLCU_soft:
   ```
   cd ./LT_NL 
-  python main.py --dataset cifar100 --loss CNLCU_soft --train_rule None --train_opt CNLCU_soft --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss CNLCU_soft --train_rule None --train_opt CNLCU_soft --epochs 200 --num_classes 100 --gpu 0 --drop_last
   ```
 * CNLCU_hard:
   ```
   cd ./LT_NL 
-  python main.py --dataset cifar100 --loss CNLCU_hard --train_rule None --train_opt CNLCU_hard --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss CNLCU_hard --train_rule None --train_opt CNLCU_hard --epochs 200 --num_classes 100 --gpu 0 --drop_last
   ```
 * RoLT:
   ```

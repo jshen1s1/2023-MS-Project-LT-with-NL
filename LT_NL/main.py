@@ -60,6 +60,7 @@ parser.add_argument('--random_state', type=int, default=0, help='random state')
 parser.add_argument('--WVN_RS', action='store_true', help = 'whether to use WVN and re-scale weight vector or not')
 parser.add_argument('--low_dim', action='store_true', help = 'whether to lower feature dim or not')
 parser.add_argument('--data_aug', action='store_true', help = 'whether to use feature augmentation or not')
+parser.add_argument('--drop_last', action='store_true', help = 'whether to drop the last non-full batch')
 parser.add_argument('--model_dir', type=str, default=None, help = 'teacher model path')
 parser.add_argument('--save_dir', type=str, default=None, help='save directory path')
 parser.add_argument('--train_rule', default='None', type=str, help='model training strategy')
@@ -94,6 +95,7 @@ def main():
                                   batch_size = args.batch_size, 
                                   num_workers=12,
                                   shuffle=(train_sampler is None),
+                                  drop_last = args.drop_last,
                                   pin_memory=True,
                                   sampler=train_sampler)
 
@@ -101,18 +103,21 @@ def main():
                                   batch_size = args.batch_size, 
                                   num_workers=12,
                                   shuffle=False,
+                                  drop_last = args.drop_last,
                                   pin_memory=True)
 
     est_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                   batch_size = args.batch_size, 
                                   num_workers=12,
                                   shuffle=False,
+                                  drop_last = args.drop_last,
                                   pin_memory=True)
     
     warmup_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                   batch_size = args.batch_size*2, 
                                   num_workers=12,
                                   shuffle=True,
+                                  drop_last = args.drop_last,
                                   pin_memory=True)
     
     img_num_per_cls = np.array(train_dataset.get_cls_num_list())
@@ -122,8 +127,9 @@ def main():
 
     # create model
     print("=> creating model '{}'".format(args.arch))
+    network_mode = 'B' if args.train_opt == 'RoLT' else 'A'
     torch.cuda.set_device(args.gpu)
-    model = models.__dict__[args.arch](num_classes=args.num_classes, low_dim=args.low_dim)
+    model = models.__dict__[args.arch](num_classes=args.num_classes, low_dim=args.low_dim, network_mode=network_mode)
     model.to(args.gpu)
 
     optimizer = torch.optim.SGD(model.parameters(),
@@ -239,6 +245,7 @@ def main():
             args.high_th = 0.02
             args.gamma = 1.005
     if args.train_opt == 'SimSiam':
+        print("=> creating model '{}'".format('SimSiam_SSL'))
         model = models.__dict__['SimSiam_SSL'](model,args.num_classes,512,freeze=False)
         model.to(args.gpu)
 
