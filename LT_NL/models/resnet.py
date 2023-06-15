@@ -139,6 +139,7 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self.in_planes = 64
         self.mode = mode
+        self.low_dim = low_dim
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -151,9 +152,9 @@ class ResNet(nn.Module):
             self.apply(_weights_init)
         else:
             self.linear = nn.Linear(512*block.expansion, num_classes)
-        self.fc = nn.Linear(512*block.expansion, 50)
-        self.l2norm = Normalize(2)
-        self.low_dim = low_dim
+        if self.low_dim:
+            self.fc = nn.Linear(512*block.expansion, 50)
+            self.l2norm = Normalize(2)
 
         if WVN:
             self.linear.register_backward_hook(self.__WVN__)

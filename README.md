@@ -2,7 +2,7 @@
 
 This repository contains the code for Jinghao Shen's MS Project
 
-The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the CIFAR10/CIFAR100 dataset, a resnet baseline is trained and evaluated. The code also allows to test four noise-robust loss functions. 
+The framework comprises all the basic stages: feature extraction, training, inference and evaluation. After loading the CIFAR10/CIFAR100 dataset, a resnet baseline is trained and evaluated. The code also allows to test five long-tailed distribution with noisy label approaches. 
 
 ### Content
 - [1. Type of Learning Approach](#1-type-of-learning-approach)
@@ -18,13 +18,13 @@ The framework comprises all the basic stages: feature extraction, training, infe
 
 ## 1. Type of Learning Approach
 
-| Symbol | `Sampling`  |          `CSL`          |       `LA`       |       `TL`        |       `Aug`       |
-| :----- | :---------: | :---------------------: | :--------------: | :---------------: | :---------------: |
-| Type   | Re-sampling | Cost-sensitive Learning | Logit Adjustment | Transfer Learning | Data Augmentation |
+| Symbol | `Sampling`  |          `CSL`          |       `LA`       |       `LC`        |       `ML`      |
+| :----- | :---------: | :---------------------: | :--------------: | :---------------: | :-------------: |
+| Type   | Re-sampling | Cost-sensitive Learning | Logit Adjustment |  Loss Correction  |  Meta Learning  |
 
-| Symbol |          `RL`           |       `CD`        |        `DT`        |    `Ensemble`     |   `other`   |
-| :----- | :---------------------: | :---------------: | :----------------: | :---------------: | :---------: |
-| Type   | Representation Learning | Classifier Design | Decoupled Training | Ensemble Learning | Other Types |
+| Symbol |       `Aug`       |          `RL`           |       `CD`        |        `DT`        |   `other`   |
+| :----- | :---------------: | :---------------------: | :---------------: | :----------------: | :---------: |
+| Type   | Data Augmentation | Representation Learning | Classifier Design | Decoupled Training | Other Types |
 
 ## 2. Top-tier Conference Papers
 
@@ -33,14 +33,17 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | Title                                                        |  Venue  | Year |       Type       |                             Code                             |
 | :----------------------------------------------------------- | :-----: | :--: | :--------------: | :----------------------------------------------------------: |
 | [Fairness Improves Learning from Noisily Labeled Long-Tailed Data](https://arxiv.org/pdf/2303.12291.pdf) |  ArXiv   | 2023 |        |                   |
-| [Meta-learning advisor networks for long-tail and noisy labels in social image classification](https://dl.acm.org/doi/pdf/10.1145/3584360) |  ACM   | 2023 |        |                   |
-| [Identifying Hard Noise in Long-Tailed Sample Distribution](https://arxiv.org/pdf/2207.13378.pdf) |  ECCV   | 2022 |        |         [Official](https://github.com/yxymessi/H2E-Framework)          |
-| [Combating Noisy Labels in Long-Tailed Image Classification](https://arxiv.org/pdf/2209.00273.pdf) |  ICLR   | 2022 |         |                                                              |
-| [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |         |            |
-| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  |                          [Official](https://github.com/xiaoboxia)                                    |
-| [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 |  |    [Official](https://github.com/Stomach-ache/PCL)     |
-| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `Aug`       |      [Official](https://github.com/Stomach-ache/RoLT)      |
-| [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |                 |
+| [Meta-learning advisor networks for long-tail and noisy labels in social image classification](https://dl.acm.org/doi/pdf/10.1145/3584360) |  ACM   | 2023 |   `CSL`,`LC`,`ML`     |                   |
+| [Identifying Hard Noise in Long-Tailed Sample Distribution](https://arxiv.org/pdf/2207.13378.pdf) |  ECCV   | 2022 |    `Aug`,`CD`    |         [Official](https://github.com/yxymessi/H2E-Framework)          |
+| [Combating Noisy Labels in Long-Tailed Image Classification](https://arxiv.org/pdf/2209.00273.pdf) |  ICLR   | 2022 |    `Sampling`,`Aug`,`LC`     |                                                              |
+| [Learning from Long-Tailed Noisy Data with Sample Selection and Balanced Loss](https://arxiv.org/pdf/2211.10906.pdf) |  ArXiv   | 2022 |    `Sampling`,`CSL`,`LC`,`Aug`     |            |
+| [Delving into Sample Loss Curve to Embrace Noisy and Imbalanced Data](https://arxiv.org/pdf/2201.00849.pdf)|  AAAI  |  2022  |   `CSL`,`ML`,`CD`  |  [Official](https://github.com/jiangwenj02/curvenet-v1)  |
+| [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  |                          [Official](https://github.com/xiaoboxia/CNLCU)                                    |
+| [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 | `LC`,`Aug`,`RL`,`CD` |    [Official](https://github.com/Stomach-ache/PCL)     |
+| [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `RL`,`Sampling`,`CD`       |      [Official](https://github.com/Stomach-ache/RoLT)      |
+| [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |        `LA`,`DT`         |
+| [Meta-Weight-Net: Learning an Explicit Mapping For Sample Weighting](https://arxiv.org/pdf/1902.07379.pdf) |  NeurIPS  |  2019  |  `CSL`,`ML`  |   [Official](https://github.com/xjtushujun/meta-weight-net)   |
+| [Unequal-Training for Deep Face Recognition With Long-Tailed Noisy Data](https://openaccess.thecvf.com/content_CVPR_2019/papers/Zhong_Unequal-Training_for_Deep_Face_Recognition_With_Long-Tailed_Noisy_Data_CVPR_2019_paper.pdf) |   CVPR   |   2019   |  `LC`  |   [Official](https://github.com/zhongyy/Unequal-Training-for-Deep-Face-Recognition-with-Long-Tailed-Noisy-Data)   | 
 
 ### Noisy Labels
 
@@ -85,7 +88,7 @@ The framework comprises all the basic stages: feature extraction, training, infe
 
 ## 3. Our codebase
 ### Dependencies
-This framework is tested on Ubuntu 20.04.5.
+This framework is tested on Ubuntu 20.04.6.
 
 ### Usage
 #### (0) Download the dataset:

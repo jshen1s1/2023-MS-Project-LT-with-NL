@@ -173,10 +173,12 @@ def main():
 
     # training init
     if 'coteaching' in args.loss:
+        print("=> Initialize training setting '{}'".format(args.loss))
         forget_rate = DT_noise_rate if args.train_opt == 'Dual_t' else args.noise_rate
         rate_schedule = np.ones(args.epochs)*forget_rate 
         rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
     if args.train_opt == 'Dual_t':
+        print("=> Initialize training setting '{}'".format(args.train_opt))
         train_sampler = None
         per_cls_weights = None
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size = 100, gamma = 0.1)
@@ -204,12 +206,14 @@ def main():
     else:
         dual_T_estimation = np.eye(args.num_classes)
     if 'cores' in args.loss:
+        print("=> Initialize training setting '{}'".format(args.loss))
         noise_prior = img_num_per_cls/num_training_samples
         noise_prior_cur = noise_prior
 
         loss_div_all = np.zeros((num_training_samples,int(args.epochs/5)))
         noise_prior_all = np.zeros((args.num_classes,args.epochs))
     if args.train_opt == 'RoLT':
+        print("=> Initialize training setting '{}'".format(args.train_opt))
         args.noisy_labels = torch.LongTensor(est_loader.dataset.train_labels).cuda()
         #clean_labels = torch.LongTensor(train_loader.dataset.true_labels).cuda()
         args.current_labels = args.noisy_labels
@@ -222,11 +226,13 @@ def main():
         if args.train_rule == 'DRW':
             args.train_opt = 'RoLT-DRW'
     if 'CNLCU' in args.train_opt:
+        print("=> Initialize training setting '{}'".format(args.train_opt))
         forget_rate = DT_noise_rate if args.train_opt == 'Dual_t' else args.noise_rate
         rate_schedule = np.ones(args.epochs)*forget_rate 
         rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
         co_lambda_plan = args.weight_decay * np.linspace(1, 0, 80) 
     if args.train_opt == 'PCL':
+        print("=> Initialize training setting '{}'".format(args.train_opt))
         weights = None
         if args.dataset == 'cifar10':
             ramp_epoch = 0
@@ -245,6 +251,7 @@ def main():
             args.high_th = 0.02
             args.gamma = 1.005
     if args.train_opt == 'SimSiam':
+        print("=> Initialize training setting '{}'".format(args.train_opt))
         print("=> creating model '{}'".format('SimSiam_SSL'))
         model = models.__dict__['SimSiam_SSL'](model,args.num_classes,512,freeze=False)
         model.to(args.gpu)
@@ -525,6 +532,7 @@ def train(train_loader, criterion, per_cls_weights, model, optimizer, epoch, arg
             probs = torch.matmul(probs, t_m)
             output = torch.log(probs+1e-12)
         loss = criterion(epoch,outputs,labels,ind,img_num_per_cls,per_cls_weights,loss_all)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -534,7 +542,7 @@ def train(train_loader, criterion, per_cls_weights, model, optimizer, epoch, arg
 
         sys.stdout.write('\r')
         sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
-                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch+1, args.epochs, i+1, num_iter, loss.item()))
         sys.stdout.flush()       
 
     acc = 100.*float(correct)/float(total) 

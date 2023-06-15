@@ -363,6 +363,7 @@ def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=
             probs = torch.matmul(probs, t_m)
             output = torch.log(probs+1e-12)
         loss = criterion(epoch,outputs,labels,ind,img_num_per_cls,loss_all)
+        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -372,7 +373,7 @@ def train(train_loader, criterion, model, optimizer, epoch, args, loss_all, t_m=
 
         sys.stdout.write('\r')
         sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
-                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch+1, args.epochs, i+1, num_iter, loss.item()))
         sys.stdout.flush()       
 
     acc = 100.*float(correct)/float(total) 

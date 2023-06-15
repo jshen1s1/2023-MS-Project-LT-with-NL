@@ -285,7 +285,7 @@ def train(train_loader, model, criterion, per_cls_weights, optimizer, lr_schedul
 
         sys.stdout.write('\r')
         sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
-                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch+1, args.epochs, i+1, num_iter, loss.item()))
         sys.stdout.flush()       
 
     lr_scheduler.step()

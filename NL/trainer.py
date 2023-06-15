@@ -60,7 +60,7 @@ def run_coteaching(train_loader, criterion, epoch, args, model1, optimizer1, mod
 
         sys.stdout.write('\r')
         sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss1: %.2f  Loss2: %.2f'
-                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss_1.item(), loss_2.item()))
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch+1, args.epochs, i+1, num_iter, loss_1.item(), loss_2.item()))
         sys.stdout.flush()
 
     train_acc1=float(train_correct)/float(train_total)
@@ -97,7 +97,7 @@ def run_cores(train_loader, criterion, model, optimizer, epoch, args, loss_all, 
 
         sys.stdout.write('\r')
         sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Loss: %.4f'
-                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, i+1, num_iter, loss.item()))
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch+1, args.epochs, i+1, num_iter, loss.item()))
         sys.stdout.flush()
     
     noise_prior_delta = np.array([len(idx_each_class_noisy[i]) for i in range(args.num_classes)])
@@ -225,7 +225,7 @@ def run_divideMix(epoch,args,net,net2,optimizer,criterion,labeled_trainloader,un
 
         sys.stdout.write('\r')
         sys.stdout.write('%s:%.1f-%s+%.3f-%s | Epoch [%3d/%3d] Iter[%3d/%3d]\t Labeled loss: %.2f  Unlabeled loss: %.4f'
-                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch, args.epochs, batch_idx+1, num_iter, Lx.item(), Lu.item()))
+                %(args.dataset, args.noise_rate, args.noise_type, args.lt_rate, args.lt_type, epoch+1, args.epochs, batch_idx+1, num_iter, Lx.item(), Lu.item()))
         sys.stdout.flush()
 
     train_acc=100.*float(train_correct)/float(train_total)
