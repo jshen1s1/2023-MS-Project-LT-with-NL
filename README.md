@@ -41,7 +41,8 @@ The framework comprises all the basic stages: feature extraction, training, infe
 | [Sample Selection with Uncertainty of Losses for Learning with Noisy Labels](https://arxiv.org/pdf/2106.00445.pdf) |  ICLR   | 2022 |  `Sampling`  |                          [Official](https://github.com/xiaoboxia/CNLCU)                                    |
 | [Prototypical Classifier for Robust Class-Imbalanced Learning](https://arxiv.org/pdf/2110.11553.pdf) |  PAKDD  | 2021 | `LC`,`Aug`,`RL`,`CD` |    [Official](https://github.com/Stomach-ache/PCL)     |
 | [Robust Long-Tailed Learning Under Label Noise](https://arxiv.org/pdf/2108.11569.pdf) |  ArXiv  | 2021 |     `RL`,`Sampling`,`CD`       |      [Official](https://github.com/Stomach-ache/RoLT)      |
-| [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |   |        `LA`,`DT`         |
+| [Learning From Long-Tailed Data With Noisy Labels](https://arxiv.org/pdf/2108.11096.pdf) |  ArXiv | 2021 |  `LA`,`DT`  |                 |
+| [Heteroskedastic and Imbalanced Deep Learning with Adaptive Regularization](https://arxiv.org/pdf/2006.15766.pdf) |  ArXiv | 2021 |  `CSL`,`LC`  |       [Official](https://github.com/kaidic/HAR)          |
 | [Meta-Weight-Net: Learning an Explicit Mapping For Sample Weighting](https://arxiv.org/pdf/1902.07379.pdf) |  NeurIPS  |  2019  |  `CSL`,`ML`  |   [Official](https://github.com/xjtushujun/meta-weight-net)   |
 | [Unequal-Training for Deep Face Recognition With Long-Tailed Noisy Data](https://openaccess.thecvf.com/content_CVPR_2019/papers/Zhong_Unequal-Training_for_Deep_Face_Recognition_With_Long-Tailed_Noisy_Data_CVPR_2019_paper.pdf) |   CVPR   |   2019   |  `LC`  |   [Official](https://github.com/zhongyy/Unequal-Training-for-Deep-Face-Recognition-with-Long-Tailed-Noisy-Data)   | 
 
