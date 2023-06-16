@@ -229,15 +229,15 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
   cd ./NL 
   python main.py --dataset cifar100 --loss cores --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
   ```
-* CORES_logits_adjustment:
-  ```
-  cd ./NL 
-  python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
-  ```
 * DivideMix:
   ```
   cd ./NL 
-  python main.py --dataset cifar100 --loss Semi --train_rule None --epochs 300 --num_classes 100 --gpu 0 --arch ResNet18
+  python main.py --dataset cifar100 --loss Semi --train_rule None --epochs 200 --num_classes 100 --gpu 0 --arch ResNet18
+  ```
+* CORES_logits_adjustment:
+  ```
+  cd ./LT_NL 
+  python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
   ```
 * CNLCU_soft:
   ```
