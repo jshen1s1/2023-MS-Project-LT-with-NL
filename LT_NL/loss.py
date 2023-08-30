@@ -145,7 +145,7 @@ def cores_logits_adjustment(epoch,logits,label,ind,img_num_per_cls,noise_prior,l
     if epoch >= 55:
         tro = 0.3
         adjustment = torch.log(noise_prior ** tro + 1e-12)
-        logits = logits + torch.FloatTensor(adjustment).cuda()
+        logits = logits + adjustment
     else:
         pass
     loss_adjust = F.cross_entropy(logits, label, reduction='none')

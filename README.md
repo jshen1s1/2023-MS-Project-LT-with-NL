@@ -238,7 +238,7 @@ usage: main.py [--resume] [-a] [--batch_size] [--lr] [--start-epoch] [--epochs] 
 * CORES_logits_adjustment:
   ```
   cd ./LT_NL 
-  python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule CORES --epochs 200 --num_classes 100 --gpu 0
+  python main.py --dataset cifar100 --loss cores_logits_adjustment --train_rule None --train_opt CORES --epochs 200 --num_classes 100 --gpu 0
   ```
 * CNLCU_soft:
   ```

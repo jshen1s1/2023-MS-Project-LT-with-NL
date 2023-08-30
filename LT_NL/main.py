@@ -205,7 +205,7 @@ def main():
         dual_T_estimation = torch.Tensor(dual_T_estimation).cuda(args.gpu)
     else:
         dual_T_estimation = np.eye(args.num_classes)
-    if 'cores' in args.loss:
+    if args.train_opt == 'CORES':
         print("=> Initialize training setting '{}'".format(args.loss))
         noise_prior = img_num_per_cls/num_training_samples
         noise_prior_cur = noise_prior

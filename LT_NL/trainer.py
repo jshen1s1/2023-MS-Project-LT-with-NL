@@ -63,7 +63,7 @@ def run_cores(train_loader, criterion, model, optimizer, epoch, args, loss_all, 
     num_iter = (len(train_loader.dataset)//train_loader.batch_size)+1
     for i, (images, labels, true_labels, indexes) in enumerate(train_loader):
         ind=indexes.cpu().numpy().transpose()
-        batch_size = len(ind)
+        batch_size = len(indexes)
 
         images = Variable(images).cuda(args.gpu)
         labels = Variable(labels).cuda(args.gpu)
